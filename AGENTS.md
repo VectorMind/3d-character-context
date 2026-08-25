@@ -7,10 +7,12 @@ defined in `WORKFLOW.md`.
 ## Current State
 
 The repository is in initial bringup. There is no Python package, CLI, or
-canonical asset yet. The active planning packet is
-`plans/2026-08/25-initial-bringup/`; its `plan.md` carries the open design
-decisions (OP-001…), and its `handoff.md` is the founding architecture
-document. Check `plans/open.md` for what is outstanding before starting work.
+canonical asset yet — the only executable code is `experiments/`, standing
+provider-access probes run with `uv run --script`. The active planning packet
+is `plans/2026-08/25-initial-bringup/`; its `plan.md` carries the design
+decisions (OP-001…), `implementation.md` logs what has actually landed, and
+`handoff.md` is the founding architecture document. Check `plans/open.md` for
+what is outstanding before starting work.
 
 ## Architecture In One Glance
 
@@ -51,14 +53,19 @@ Operational output stays under git-ignored `.cache/`:
 | `.cache/results/` | bounded command JSON/Markdown summaries |
 | `.cache/reports/` | tracebacks and long subprocess/provider logs |
 | `.cache/scratch/`, `.cache/downloads/` | experiments and downloads |
+| `experiments/` (committed) | standing provider-access probes; each run reports into `.cache/results/<date>/<time>-<experiment>/` |
 | `.tools/` | provisioned external binaries (e.g. Blender) |
 
-Data never lives in the code repo: reference images, generated meshes, and
-canonical template assets belong to an external, uncommitted project folder
-(`<project>/inputs/`, `<project>/generated/`, `<project>/assets/` — contract
-under decision in OP-012). Never write data or generated files into `src/`,
-`plans/`, `specifications/`, or the repository root. Never commit `.cache/`
-or `.tools/`.
+Data never lives in the code repo: reference images, generated meshes,
+collected donor/source assets, and canonical template assets belong to an
+external, uncommitted project folder (`<project>/inputs/`,
+`<project>/generated/`, `<project>/assets/`). This is the data co-workspace,
+not merely a generation-output folder; when it has its own `AGENTS.md`,
+`README.md`, or `INDEX.md`, read them before changing its data or layout. The
+active project path comes from `CHARCTX_PROJECT` in this workspace's
+git-ignored `.env` (a `--project` flag overrides it per command). Never write
+data or generated files into `src/`, `plans/`, `specifications/`, or the
+repository root. Never commit `.cache/` or `.tools/`.
 
 Hosted generation costs money and is non-deterministic: every remote
 generation is append-only — each run gets a fresh folder under the project's

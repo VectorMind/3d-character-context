@@ -33,14 +33,38 @@ implementation detail in the spec; capture the durable rule behind it.
 
 ## Data/Code Split
 
-The code repository holds only code, contracts, and documentation. All input
-data (reference images), all generated meshes, and the canonical template
-assets (canonical mesh, skeleton, landmarks, regions) live in an external
-project folder that is never committed to git — which also frees asset and
-base-model choices from redistribution licensing. Operational output
-(command results, reports, scratch) belongs under the repository's
-git-ignored `.cache/`. Never commit `.cache/` content and never mix data or
-generated files into `specifications/`, `plans/`, or `src/`.
+The code repository holds only code, contracts, and documentation. The
+external project folder is the durable **data co-workspace**, not merely a
+generation-output destination. It holds all input data (reference images),
+append-only generated meshes, reusable collected donor/source assets and
+their provenance, and canonical template assets (canonical mesh, skeleton,
+landmarks, regions, and weights). Keeping these in the external project also
+frees asset and base-model choices from redistribution licensing constraints.
+
+The selected project uses three top-level data roots:
+
+```text
+<project>/
+  inputs/       # supplied references and other run inputs
+  generated/    # append-only provider/run results
+  assets/       # collected reusable assets and verified canonical assets
+```
+
+New third-party assets enter through `<project>/assets/_inbox/` and, after
+provenance and licensing are recorded, become self-contained packages under
+`<project>/assets/collected/`. Canonical assets remain a separate, deliberate
+promotion; collection alone never makes an asset canonical. The selected
+project may be a cloud-synced collaboration workspace. If it contains its own
+`AGENTS.md`, `README.md`, or `INDEX.md`, those files are authoritative for the
+data present there, provenance handling, and navigation, while this repository
+remains authoritative for software behavior and contracts.
+
+Operational output (command results, reports, scratch, and transient
+downloads) belongs under the repository's git-ignored `.cache/`. A valuable
+download must not remain only in `.cache/`: move it into the selected project
+through the documented intake flow without altering the original bytes.
+Never commit `.cache/` content and never mix data or generated files into
+`specifications/`, `plans/`, or `src/`.
 
 The pipeline is fully automated: the workflow does not assume a skilled 3D
 author/modeller, so asset production must be scripted, never dependent on

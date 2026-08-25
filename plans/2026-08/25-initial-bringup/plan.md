@@ -1,9 +1,15 @@
 # Plan: 3D Character Context Initial Bringup
 
 Date: 2026-08-25
-Status: Planning — first decision pass recorded 2026-08-25: OP-001…OP-010
-accepted (several with amendments), which raised three new open points
-OP-011…OP-013 now awaiting decision. No implementation yet.
+Status: Planning complete — all open points OP-001…OP-013 accepted. Decision
+pass 1 (2026-08-25) accepted OP-001…OP-010; decision pass 2 (2026-08-25)
+accepted OP-011…OP-013 with amendments (free-access experiment phase,
+`.env`-based project selection with a designated co-workspace,
+artifacts-fetch-provisioned Blender); decision pass 3 (2026-08-25) settled
+the Blender pin on the 5.x line (5.2.1) for its new character-rigging
+features. Phase 1 in progress: the Hugging Face free-access paths are
+validated (see [`implementation.md`](./implementation.md)); the commercial
+free tiers remain to probe before the backend is finally selected.
 
 The founding architecture document for this repository is
 [`handoff.md`](./handoff.md) in this packet. This plan scopes the first
@@ -34,7 +40,7 @@ below).
 | OP | Topic | Resolution / Proposal | Confidence | Status |
 | --- | --- | --- | --- | --- |
 | OP-001 | Package and CLI naming | `character_context` package, `charctx` CLI | high | **accepted 2026-08-25** |
-| OP-002 | Python version and tooling | uv + hatchling, ruff + pytest, `>=3.11,<3.13`, pin 3.12 — pin may tighten to 3.11 if OP-013 selects the `bpy` wheel | high (tooling) / medium (pin) | **accepted 2026-08-25** (pin revisit linked to OP-013) |
+| OP-002 | Python version and tooling | uv + hatchling, ruff + pytest, `>=3.11,<3.13`, pin 3.12 — pin confirmed since OP-013 selected the external binary, not the `bpy` wheel | high | **accepted 2026-08-25** |
 | OP-003 | First hosted generation backend | Hugging Face first; fal.ai, Hunyuan3D endpoints, and commercial APIs documented as alternatives only (README/spec), no code for them | medium | **accepted 2026-08-25 with amendment** |
 | OP-004 | Backend abstraction depth | Relaxed: shared pydantic contracts + one concrete backend module; no protocol/registry machinery until a second backend actually lands; backend-specific behavior stays specific | medium | **accepted 2026-08-25 with amendment** |
 | OP-005 | Geometry stack staging | Milestone 1: numpy + trimesh only; Open3D / PyTorch3D / PyMeshLab / libigl documented as staged alternatives, not installed | high | **accepted 2026-08-25** |
@@ -43,9 +49,9 @@ below).
 | OP-008 | Single-interface rule | Documented CLI for humans and agents, side-effect-free Python API, no agent skills | high | **accepted 2026-08-25** |
 | OP-009 | Data/code split | Code repo holds only code and contracts; all input images, generated meshes, and canonical assets live in an external, uncommitted project folder — removing licensing constraints and enabling any base model; full automation, no hand-modelling dependence | high | **accepted 2026-08-25 with amendment** (contract details → OP-012) |
 | OP-010 | Blender role | Blender is a first-class mandatory workspace tool, not optional: any library a pipeline stage needs is installed as part of the main flow, no redundant-optional variants | high | **accepted 2026-08-25 with amendment** (mechanism → OP-013) |
-| OP-011 | Hugging Face access mechanism | `gradio_client` against an official public Space (TRELLIS or Hunyuan3D-2), HF token from `.env`; dedicated Inference Endpoint as the escalation path | medium | open (new) |
-| OP-012 | Project-folder contract | Minimal for bringup: `charctx project init/use` + `--project`, conventional `inputs/ generated/ assets/` layout; manifest schema deferred until project-local code is needed | medium | open (new) |
-| OP-013 | Blender install mechanism | Provisioned headless Blender binary in `.tools/` driven by subprocess (proposal) vs `bpy` pip wheel (pins Python to the wheel's version, currently 3.11) | medium | open (new) |
+| OP-011 | Hugging Face access mechanism | `gradio_client` against public Spaces, HF token from `.env` — gated by a **free-access experiment phase**. HF half run 2026-08-25: REST inference serves no `image-to-3d`, so a Space is the only free HF path; `microsoft/TRELLIS` is down, `trellis-community/TRELLIS` and `microsoft/TRELLIS.2` both deliver measured GLBs at ~4 free generations/day | high for the mechanism; backend choice pending the commercial-tier probe | **accepted 2026-08-25 with amendment**; HF paths validated |
+| OP-012 | Project-folder contract | Project path given by the user and stored in this workspace's `.env` (`CHARCTX_PROJECT`); `--project` overrides per command; conventional `inputs/ generated/ assets/` layout; designated co-workspace: `C:\Users\wassi\My Drive\Projects\3d-models\characters-generation`; no manifest | high | **accepted 2026-08-25 with amendment** |
+| OP-013 | Blender install mechanism | Managed by an artifacts-fetch mechanism (`config/artifacts.yaml` + `charctx fetch blender`) downloading the official portable zip from `download.blender.org` (verified: stable versioned paths; GitHub is a source mirror with no binaries) into `.tools/`; pinned to **Blender 5.2.1** for the 5.x line's new character-rigging features | high | **accepted 2026-08-25** (pin settled in pass 3) |
 
 ## Goal And Objectives
 
@@ -102,10 +108,9 @@ project manifest contract.
 - Resolution: **uv + hatchling, ruff + pytest dev group, line length 88,
   `>=3.11,<3.13`, `.python-version` pinned to 3.12** — identical tooling to
   cad-context.
-- Linked revisit: if OP-013 selects the `bpy` pip wheel, the pin tightens to
-  the wheel's Python (currently 3.11); the window already covers it.
-- Confidence: high (tooling) / medium (pin, pending OP-013).
-  Status: **accepted 2026-08-25**.
+- Linked revisit resolved: OP-013 selected the external Blender binary, not
+  the `bpy` wheel, so the 3.12 pin stands.
+- Confidence: high. Status: **accepted 2026-08-25**.
 
 ### OP-003 — First hosted generation backend
 
@@ -270,12 +275,30 @@ are Spaces or dedicated endpoints.
   single-stage image→GLB, simplest contract) vs **Hunyuan3D-2** (two-stage,
   textured output). Proposal: TRELLIS first; Hunyuan3D-2 documented as the
   second target.
-- Proposal: `gradio_client` against the official TRELLIS Space, `HF_TOKEN`
-  from `.env`, Space id in `config/providers.yaml`; duplicate-the-Space as
-  the first mitigation if the public queue proves unusable; dedicated
-  endpoint documented as the escalation path. Exact Space id and API
-  surface verified and recorded at implementation time.
-- Confidence: medium. Status: **open**.
+- Resolution (maintainer amendment): do not lock the mechanism on paper —
+  **validate it empirically first.** The packet gains a dedicated early
+  experiment phase (Phase 1 below) that exercises **all free API access
+  paths with real accounts** before any backend code is written:
+  `gradio_client` against the official TRELLIS and Hunyuan3D-2 Spaces with
+  `HF_TOKEN`, plus probing whatever free credits the commercial APIs
+  (Meshy, Tripo, Rodin) offer — recording for each: authentication flow,
+  queue/quota behavior, latency, output formats, and one downloaded mesh
+  where the free path permits. The experiment's findings (recorded in
+  `implementation.md` and `test.md`) select the first backend and its
+  mechanism; duplicate-the-Space and dedicated Inference Endpoints remain
+  the documented escalation paths.
+- Experiment result (2026-08-25, Hugging Face half): HF's REST/serverless
+  inference serves **zero** `image-to-3d` models, so Spaces are not one
+  option among several but the only free HF path; the plan's preferred
+  `microsoft/TRELLIS` Space is in `CONFIG_ERROR`, while
+  `trellis-community/TRELLIS` (one call, 21 s, 10 k vertices) and
+  `microsoft/TRELLIS.2` (session-stateful three calls, 65 s, 192 k vertices)
+  both returned measurable GLBs; the free ZeroGPU budget allows roughly four
+  generations per day. Details in `implementation.md`, proof in `test.md`.
+- Confidence: medium, raised to high by the experiment before Phase 4
+  commits to a backend. Status: **accepted 2026-08-25 with amendment**;
+  mechanism validated for Hugging Face, backend selection still pending the
+  commercial-tier half of Phase 1.
 
 ### OP-012 — Project-folder contract (new, from OP-009)
 
@@ -294,8 +317,15 @@ How much of cad-context's external-project machinery does bringup need?
   - **Just a `--project` path argument, no persistence**: least code, but
     every command invocation must repeat the path, which is hostile to the
     iterative loop.
-- Proposal: minimal contract with the persisted pointer (first option).
-  Layout inside a project:
+- Resolution (maintainer amendment): **the project folder is given by the
+  user (prompt or CLI) and stored in this workspace's git-ignored `.env`**
+  (`CHARCTX_PROJECT`), not in a `.cache/` pointer — the same `.env` that
+  carries provider credentials (OP-007) is the single local-configuration
+  surface. Selection precedence: `--project` for one command, then
+  `CHARCTX_PROJECT` from the environment/`.env`. `charctx project init`
+  scaffolds the conventional layout; `project info` reports the active
+  folder. No manifest until a later packet gives projects configuration or
+  code of their own. Layout inside a project:
 
   ```text
   <project>/
@@ -304,9 +334,16 @@ How much of cad-context's external-project machinery does bringup need?
     assets/                  # canonical template assets (milestone 2+)
   ```
 
-  A manifest is introduced only when a later packet gives projects
-  configuration or code of their own.
-- Confidence: medium. Status: **open**.
+  The designated co-workspace for this repository's data is:
+
+  ```text
+  C:\Users\wassi\My Drive\Projects\3d-models\characters-generation
+  ```
+
+  It is a Google-Drive-synced path containing spaces — all path handling
+  must quote correctly, and cloud sync gives generated data offsite backup
+  for free (a slow-sync risk on large meshes is noted in Risks).
+- Confidence: high. Status: **accepted 2026-08-25 with amendment**.
 
 ### OP-013 — Blender install mechanism (new, from OP-010)
 
@@ -327,53 +364,106 @@ the environment.
   - **Both** (wheel for library-style use, binary for export/render jobs):
     two Blender surfaces to keep consistent — against the OP-010
     no-redundancy doctrine.
-- Proposal: the provisioned headless binary. It is the mandatory-but-
-  external pattern this workspace already plans for provisioned tools,
-  keeps the Python pin free, and matches how Blender is exercised in batch
-  (`--background`) anyway. Revisit only if subprocess round-trips prove to
-  dominate milestone-2 iteration time.
-- Confidence: medium. Status: **open**.
+- Resolution (maintainer amendment): **the provisioned headless binary,
+  managed by a general artifacts-fetch mechanism** — external tools are
+  declared in `config/artifacts.yaml` (name, source URL pattern, pinned
+  version, checksum, install dir, executable relative path) and provisioned
+  by `charctx fetch <name>` into `.tools/`, mirroring cad-context's proven
+  `cadctx fetch` design. Revisit `bpy` only if subprocess round-trips prove
+  to dominate milestone-2 iteration time.
+- Source verified 2026-08-25: the `blender/blender` GitHub repository is a
+  source mirror and **publishes no binary releases**; the official channel
+  is `download.blender.org`, which serves exactly the fixed, clean,
+  versioned paths wanted:
+
+  ```text
+  https://download.blender.org/release/Blender4.5/blender-4.5.13-windows-x64.zip
+  ```
+
+  Portable zip, no installer; unpacks to `blender-4.5.13-windows-x64/` with
+  `blender.exe` at a known relative path — ideal for `.tools/blender/`.
+  Release lines currently visible: 4.1…4.5 (LTS, still receiving point
+  releases — latest 4.5.13) and 5.0…5.2. The artifacts config therefore
+  uses a direct-URL source (the schema cad-context already carries for
+  non-GitHub tools).
+- Version pin (settled, decision pass 3): **Blender 5.2.1** — the newest
+  5.x portable build, chosen over 4.5 LTS by the maintainer for the 5.x
+  line's advanced new character-rigging features, fitting the experimental
+  nature of the project. Verified available 2026-08-25:
+
+  ```text
+  https://download.blender.org/release/Blender5.2/blender-5.2.1-windows-x64.zip
+  ```
+
+  The 5.x line is not LTS and moves faster than 4.5: the pin is an exact
+  version in `config/artifacts.yaml`, and bumps are deliberate one-line
+  changes, never implicit "latest".
+- Confidence: high. Status: **accepted 2026-08-25** (pin settled in
+  pass 3).
 
 ## Implementation Phases
 
-0. **Decisions.** OP-001…OP-010 accepted 2026-08-25 (amendments recorded
-   above). Remaining before code: maintainer decision on OP-011…OP-013.
-1. **Environment.** `pyproject.toml` (base deps only, per OP-004/OP-005),
+0. **Decisions.** Complete — OP-001…OP-013 accepted 2026-08-25 (amendments
+   and the Blender 5.2.1 pin recorded above). Nothing blocks Phase 1.
+1. **Free-access experiment (OP-011).** Before any repository code: with
+   real accounts, validate every free API access path using standing
+   PEP 723 probe scripts in `experiments/` (`uv run --script ...`, no
+   package needed), each writing a timestamped report under
+   `.cache/results/` — TRELLIS Space and Hunyuan3D-2 Space via
+   `gradio_client` + `HF_TOKEN`, plus probing the commercial free tiers
+   (Meshy, Tripo, Rodin). Record per provider: auth flow, queue/quota
+   behavior, latency, output formats, and a downloaded mesh where the free
+   path allows. Findings open `implementation.md` and select the first
+   backend; unusable paths are documented as alternatives with the reason.
+2. **Environment.** `pyproject.toml` (base deps only, per OP-004/OP-005),
    `.python-version`, lockfile, `.gitignore`, `src/character_context/`
    package skeleton, `charctx` entry point with `info` and `paths`,
-   repository `.cache/` operational layout.
-2. **Contracts and project folder.** The four pydantic models (two used,
-   two reserved), `config/providers.yaml`, `.env` credential loading per
-   OP-007, and the minimal project commands per OP-012.
-3. **Hugging Face backend.** The first backend module per OP-011: submit a
-   reference image to the Space, await, download artifact(s) into the
+   repository `.cache/` operational layout, and the artifacts-fetch
+   mechanism per OP-013: `config/artifacts.yaml` + `charctx fetch blender`,
+   proven by provisioning the pinned Blender zip into `.tools/` and running
+   `blender --version` headless.
+3. **Contracts and project folder.** The four pydantic models (two used,
+   two reserved), `config/providers.yaml`, `.env` loading for credentials
+   and `CHARCTX_PROJECT` per OP-007/OP-012, and the project commands
+   (`init`, `info`) exercised against the designated co-workspace.
+4. **Hosted backend.** The backend module chosen by the Phase 1 findings:
+   submit a reference image, await, download artifact(s) into the
    append-only `generated/` slot with `request.json`; `generate` CLI
    command. A recorded-response fixture keeps the default test suite
    offline and free.
-4. **Mesh report.** trimesh loading, normalization and inspection producing
+5. **Mesh report.** trimesh loading, normalization and inspection producing
    `*.measurements.json` with all handoff metrics; `report` CLI command
    that also works on any local GLB/OBJ so it is testable without any
    provider call.
-5. **Proof and spec fold.** pytest around every artifact boundary (offline
+6. **Proof and spec fold.** pytest around every artifact boundary (offline
    via fixtures, plus one env-gated live smoke test), ruff clean, README
    command reference complete, and first specs folded: workspace layout +
-   project folder, agent interface, generator-backend contract **including
-   the documented backend alternatives** (fal.ai, Hunyuan3D, Tripo, Meshy,
-   Rodin) **and staged geometry-library alternatives** (Open3D, PyTorch3D,
-   PyMeshLab, libigl), mesh-report contract, and the Blender mechanism
-   rule from OP-013.
+   project folder (`.env` selection), agent interface, generator-backend
+   contract **including the documented backend alternatives with the
+   Phase 1 findings** (fal.ai, Hunyuan3D, Tripo, Meshy, Rodin) **and staged
+   geometry-library alternatives** (Open3D, PyTorch3D, PyMeshLab, libigl),
+   mesh-report contract, and the external-tools/artifacts-fetch rule from
+   OP-013.
 
 ## Dependencies And Risks
 
 - Public HF Space reliability (queues, ZeroGPU quotas, API churn) is the
-  main external risk of the OP-003 amendment; OP-011's duplicate-Space and
-  dedicated-endpoint paths are the documented mitigations, and the
-  relaxed OP-004 boundary keeps a later provider switch cheap.
+  main external risk; the Phase 1 experiment surfaces it with facts before
+  any backend code exists, and duplicate-Space / dedicated-endpoint paths
+  are the documented mitigations. The relaxed OP-004 boundary keeps a later
+  provider switch cheap.
 - Free-tier generation quality/latency may pressure an early move to a paid
-  alternative; because alternatives are documented but not coded, that
-  move is a deliberate small packet, not a rewrite.
-- The OP-013 outcome feeds back into OP-002's Python pin; deciding OP-013
-  before Phase 1 avoids re-locking the environment.
+  alternative; because alternatives are documented (with Phase 1 findings)
+  but not coded, that move is a deliberate small packet, not a rewrite.
+- Blender 5.2.1 is a non-LTS line chosen for its new character-rigging
+  features: point releases and behavior may move faster than 4.5 LTS. The
+  exact-version pin in `config/artifacts.yaml` isolates the workspace from
+  upstream churn; falling back to 4.5 LTS is a one-line pin change if a
+  5.x regression ever blocks a pipeline stage.
+- The co-workspace is a Google-Drive-synced folder with spaces in its path:
+  path quoting must be correct everywhere, and Drive sync of large meshes
+  may lag or lock files mid-write — write artifacts atomically (temp file
+  then rename) and treat sync latency as a known behavior, not a bug.
 - Windows wheel coverage for the deferred heavy stack (Open3D, PyTorch3D)
   remains the main future risk for milestones 2–3.
 - Full automation of canonical-template production (OP-009) raises
@@ -384,13 +474,20 @@ the environment.
 
 ## Exit Criteria
 
+- Phase 1 findings are recorded per provider (auth, quota, latency,
+  formats) with at least one mesh obtained through a free path, and the
+  first backend is chosen from those facts.
 - `uv sync` succeeds from a clean checkout on Windows.
+- `charctx fetch blender` provisions the pinned portable Blender into
+  `.tools/` from `config/artifacts.yaml` alone, and `blender --version`
+  runs headless from the resolved path.
 - The core contracts exist with tests; provider-native responses do not
   appear outside the backend module.
-- `charctx project init/use` produces and selects a project folder; no
-  command writes input or generated data anywhere inside the code repo.
-- One documented CLI run takes a reference image through Hugging Face
-  generation to a downloaded mesh in a fresh append-only `generated/` slot
+- `charctx project init` scaffolds the co-workspace layout and the project
+  is selected via `CHARCTX_PROJECT` in `.env` (with `--project` override);
+  no command writes input or generated data anywhere inside the code repo.
+- One documented CLI run takes a reference image through the chosen hosted
+  backend to a downloaded mesh in a fresh append-only `generated/` slot
   with `request.json` (live, maintainer-run); repeating the run creates a
   new slot and overwrites nothing.
 - `report` produces a `*.measurements.json` for that mesh — and for any
