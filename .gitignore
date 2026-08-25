@@ -1,0 +1,13 @@
+# Derived/operational output (see WORKFLOW.md and AGENTS.md)
+.cache/
+.tools/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Secrets
+.env
