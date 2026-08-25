@@ -27,6 +27,24 @@ implementation phases run.
 - No `implementation.md` exists, consistent with no implementation having
   happened.
 
+## Document Consistency Checks — Decision Pass 1 (2026-08-25)
+
+- Maintainer decisions on OP-001…OP-010 folded into `plan.md`: table and
+  detailed sections updated together; every accepted amendment (HF-first,
+  relaxed abstraction, append-only caching, data/code split, Blender
+  first-class) is recorded in both places with matching status.
+- Three new open points raised from the answers — OP-011 (HF access
+  mechanism/Space), OP-012 (project-folder contract), OP-013 (Blender
+  install mechanism, linked back to OP-002's Python pin) — each with
+  candidates, proposal, and confidence; all status open.
+- Phases, goals, scope, risks, and exit criteria re-aligned with the
+  amendments (no registry, HF backend, project folder, append-only slots,
+  documented-only alternatives).
+- Repository docs corrected where OP-009 invalidated them: `WORKFLOW.md`
+  (Generated Artifacts → Data/Code Split), `AGENTS.md` (output table,
+  project-folder rule, append-only rule), `README.md` (assets bullet, CLI
+  name now accepted as `charctx`). `plans/open.md` row updated.
+
 ## Known Gaps
 
 - No runtime proof yet — no environment, code, or tests exist.

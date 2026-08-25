@@ -50,19 +50,21 @@ Operational output stays under git-ignored `.cache/`:
 | --- | --- |
 | `.cache/results/` | bounded command JSON/Markdown summaries |
 | `.cache/reports/` | tracebacks and long subprocess/provider logs |
-| `.cache/generated/` | downloaded hosted-generation artifacts and their measurement reports |
 | `.cache/scratch/`, `.cache/downloads/` | experiments and downloads |
 | `.tools/` | provisioned external binaries (e.g. Blender) |
 
-Hand-authored canonical template assets are source and live under `assets/`
-(e.g. `assets/western_dragon_v1/`). Never write generated files into `src/`,
-`assets/`, `plans/`, `specifications/`, or the repository root. Never commit
-`.cache/` or `.tools/`.
+Data never lives in the code repo: reference images, generated meshes, and
+canonical template assets belong to an external, uncommitted project folder
+(`<project>/inputs/`, `<project>/generated/`, `<project>/assets/` — contract
+under decision in OP-012). Never write data or generated files into `src/`,
+`plans/`, `specifications/`, or the repository root. Never commit `.cache/`
+or `.tools/`.
 
 Hosted generation costs money and is non-deterministic: every remote
-generation must persist its request metadata (backend, seed, options) next to
-the downloaded artifact so no paid result is ever unreproducible or silently
-discarded.
+generation is append-only — each run gets a fresh folder under the project's
+`generated/` directory with its request metadata (backend, seed, options)
+beside the downloaded artifact. No paid result is ever overwritten or
+silently discarded.
 
 ## Secrets
 

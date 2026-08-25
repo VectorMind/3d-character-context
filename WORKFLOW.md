@@ -31,13 +31,20 @@ just into a plan or a commit message. Plans are time-bounded and get abandoned
 after implementation; the spec is what survives. Do not record case-level
 implementation detail in the spec; capture the durable rule behind it.
 
-## Generated Artifacts
+## Data/Code Split
 
-Generated meshes, downloads from hosted providers, and derived reports are
-derived data and belong under git-ignored `.cache/`. Hand-authored canonical
-template assets (canonical mesh, skeleton, landmarks, regions) are source, not
-derived data, and live under `assets/`. Never commit `.cache/` content and
-never mix generated files into `specifications/`, `plans/`, or `src/`.
+The code repository holds only code, contracts, and documentation. All input
+data (reference images), all generated meshes, and the canonical template
+assets (canonical mesh, skeleton, landmarks, regions) live in an external
+project folder that is never committed to git — which also frees asset and
+base-model choices from redistribution licensing. Operational output
+(command results, reports, scratch) belongs under the repository's
+git-ignored `.cache/`. Never commit `.cache/` content and never mix data or
+generated files into `specifications/`, `plans/`, or `src/`.
+
+The pipeline is fully automated: the workflow does not assume a skilled 3D
+author/modeller, so asset production must be scripted, never dependent on
+hand-sculpting.
 
 ## Git Ownership
 

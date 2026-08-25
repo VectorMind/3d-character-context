@@ -59,8 +59,8 @@ hosted inference providers over HTTPS and download mesh artifacts.
 ## Planned Interface
 
 Once the bringup packet lands, the repository follows the same interface rule
-as its sibling `cad-context`: one documented CLI as the single interface for
-humans and agents (name settled by OP-001 of the bringup plan), plus a
+as its sibling `cad-context`: one documented CLI — `charctx` (OP-001,
+accepted) — as the single interface for humans and agents, plus a
 side-effect-free Python API. Every capability ships with its command and its
 README entry together; this section becomes the command reference.
 
@@ -84,7 +84,8 @@ read first.
 - [`plans/`](plans/README.md) — dated planning packets;
   [`open.md`](plans/open.md) and [`closed.md`](plans/closed.md) index their
   status.
-- `assets/` — hand-authored canonical template assets (source, committed).
-- `.cache/` — all generated/downloaded artifacts (derived, git-ignored).
+- External project folder (uncommitted) — all input images, generated
+  meshes, and canonical template assets; the code repo holds no data.
+- `.cache/` — operational output only (derived, git-ignored).
 
 The maintainer owns all git operations.
