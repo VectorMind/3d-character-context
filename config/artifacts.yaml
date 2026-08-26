@@ -1,0 +1,30 @@
+# External tools provisioned into the git-ignored `.tools/` directory by
+# `charctx fetch <name>`. Nothing here is installed implicitly: fetching is
+# always an explicit act.
+#
+# Version pins are exact. Bumping a tool is a deliberate one-line change,
+# never an implicit "latest".
+
+artifacts:
+  blender:
+    description: >-
+      Blender headless engine for geometry and rigging stages. Pinned to the
+      5.x line for its character-rigging features; the 4.5 LTS line is the
+      fallback if a 5.x regression ever blocks a stage.
+    version: "5.2.1"
+    # download.blender.org is the official binary channel. The GitHub
+    # repository is a source mirror and publishes no binaries.
+    url: "https://download.blender.org/release/Blender5.2/blender-5.2.1-windows-x64.zip"
+    # From https://download.blender.org/release/Blender5.2/blender-5.2.1.sha256
+    sha256: "0e631dad7d0cad6d5d18abdd2e2550f6c0213215334eda00ddbd3d22b96ecb2c"
+    size_bytes: 404851964
+    archive: zip
+    # Directory the archive unpacks to, relative to the extraction root.
+    archive_root: "blender-5.2.1-windows-x64"
+    # Where the tool lives under `.tools/`.
+    install_dir: "blender"
+    # Executable relative to install_dir.
+    executable: "blender.exe"
+    # Command proving the provisioned tool runs.
+    version_args: ["--version"]
+    platform: "win32"

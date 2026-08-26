@@ -175,18 +175,161 @@ budget is shared across all ZeroGPU Spaces for the account, and it resets on a
 24 h timer — roughly **four free generations per day**. `--probe-only` and
 `--measure` exist so script iteration costs none of it.
 
+## Runtime Proof — Phases 2-6, Bringup Implementation (2026-08-25)
+
+### Environment
+
+- Windows 11, `uv` 0.11.19. `uv sync` succeeds from this checkout and
+  provisions CPython 3.12.13 per `.python-version`.
+- Resolved versions of note: pydantic 2.13.4, trimesh 5.0.0, numpy 2.5.2,
+  scipy 1.18.1, networkx 3.6.1, gradio-client (installed via `gradio-client`),
+  pytest 9.1.1, ruff 0.16.4.
+- Project selected through `.env`: `CHARCTX_PROJECT=C:\Users\wassi\My Drive\
+  Projects\3d-models\characters-generation` (a cloud-synced path containing
+  spaces).
+
+### Commands And Results
+
+| Command | Expected | Actual |
+| --- | --- | --- |
+| `uv sync` | clean environment | pass |
+| `uv run pytest` | offline suite green | **65 passed, 1 skipped** (the skip is the `live` test) in 0.6 s |
+| `uv run ruff check .` | clean | **All checks passed** |
+| `uv run charctx info` | project, backend, tool state | pass — project selected, `trellis2` credentialed, `blender 5.2.1: installed` |
+| `uv run charctx paths` | every write location | pass |
+| `uv run charctx backends` | implemented vs documented | pass — `trellis2` implemented; 4 alternatives listed as documentation only |
+| `uv run charctx project info` | active project contents | pass — `exists: True`, `scaffolded: True` |
+| `uv run charctx fetch blender` | provision + verify | pass — **`Blender 5.2.1 LTS`** |
+| `uv run charctx report <glb>` | metrics for a real mesh | pass — see below |
+| `uv run charctx generate …` | mesh in a fresh slot | **blocked by quota** — see below |
+
+### `charctx fetch blender`
+
+Fetched the pinned artifact from `config/artifacts.yaml` alone:
+
+```text
+blender 5.2.1 provisioned
+  executable: C:\dev\VectorMind\3d-character-context\.tools\blender\blender.exe
+  verified  : Blender 5.2.1 LTS
+```
+
+- 404,851,964 bytes downloaded, SHA-256 verified against the vendor's
+  published `blender-5.2.1.sha256` before extraction.
+- The executable path carries no version number, so a pin bump does not move
+  it.
+- Failure reproduced and fixed on the way: `PermissionError: [WinError 5]`
+  renaming the extracted directory while Windows still held handles on the
+  freshly written executables. The rename now retries with backoff and falls
+  back to a copy; the second run succeeded with the cached archive, no
+  re-download.
+- Recorded contradiction with the plan: 5.2.1 reports itself as **LTS**,
+  where the plan assumed the 5.x line was non-LTS.
+
+### `charctx report` On A Real TRELLIS.2 Artifact
+
+Measured the GLB the Phase 1 experiment brought back from
+`microsoft/TRELLIS.2`:
+
+```text
+  format     : glb (9,965,912 bytes, 1 geometry/ies)
+  vertices   : 192,190
+  faces      : 293,665
+  extents    : 0.7991 x 0.5952 x 0.9970
+  bounds     : -0.3995 -0.2978 -0.4975  ->  0.3996 0.2975 0.4996
+  area       : 2.0044
+  volume     : n/a (not watertight)
+  watertight : False
+  components : 3320
+  degenerate : 1 face(s)
+  finite     : True
+  textured   : True
+  sampled    : 2048 surface point(s)
+  plausible  : True
+```
+
+Every metric the handoff's first milestone asks for is present. `volume` is
+correctly withheld on a non-watertight surface rather than reported as a
+number that means nothing.
+
+### `charctx generate` Against The Live Space
+
+```powershell
+uv run charctx generate "…\inputs\references\trellis-example-dragon.png" --name red-dragon --seed 42
+```
+
+```text
+  connecting to microsoft/TRELLIS.2
+  preprocessing reference image
+  generating 3D asset (reserves GPU quota)
+error: QuotaExhausted: You have exceeded your free ZeroGPU quota (120s
+requested vs. 156s left). Try again in 23:26:18. Subscribe to Hugging Face
+PRO to get 25 min of ZeroGPU quota a day - …
+```
+
+What this **does** prove, against the real Space and not a mock: `.env`
+loading, project selection over a cloud-synced path with spaces, run-slot
+allocation, credential resolution, Space connection, `view_api` retrieval,
+session start, image preprocessing (which round-tripped a real file), and the
+full-parameter `/image_to_3d` submission. It fails exactly at the GPU
+reservation, which the day's Phase 1 experiment had already spent.
+
+What it does **not** prove: that a mesh comes back and lands in the slot.
+That is the one outstanding exit criterion.
+
+Two behaviors verified from the failure itself:
+
+- the empty run slot was discarded —
+  `generated/trellis2/` is empty, with no `red-dragon-001` left to be
+  mistaken for a real run;
+- the provider's message reaches the operator unedited, numbers and reset
+  time included.
+
+### Offline Test Coverage (65 tests)
+
+| File | What it proves |
+| --- | --- |
+| `test_contracts.py` (9) | Missing images, bad slugs, empty image lists, and unknown top-level fields are all rejected; non-mesh artifacts are refused; the plausibility gate rejects empty and non-finite geometry |
+| `test_config.py` (10) | The real environment beats `.env`; comments and blanks are ignored; a missing credential names its variable; `mask()` leaks no fragment of a value; committed YAML carries no secret; unknown backends and artifacts list the known ones; documented alternatives are not selectable; the Blender pin is exact |
+| `test_project.py` (8) | Selection precedence; a missing selection names both the variable and the flag; scaffolding is idempotent and refused inside the repository; run slots increment, skip taken numbers, and never collide; `describe()` creates nothing |
+| `test_mesh_report.py` (8) | A radius-0.5 icosphere measures its known area and extents; two disconnected boxes count as 2 components; a non-watertight mesh reports no volume; measuring writes nothing; the sidecar round-trips; unloadable files error clearly |
+| `test_artifacts.py` (7) | The archive root is flattened; fetch is idempotent; `--force` replaces stale content; a checksum mismatch leaves no file behind; verifying an unprovisioned tool names the fetch command |
+| `test_backend_trellis2.py` (11) | Against the Space's **recorded API description**: slots are fresh and never reused; session ordering; **every declared parameter is sent**; option precedence; `request.json` contents; the reference image travels with the result; quota refusal is its own error; a changed Space API is reported; no provider-native payload escapes |
+| `test_cli.py` (12) | JSON and text output for every read command; no credential in output; sidecar writing and `--no-write`; exit code 2 for configuration errors and 1 for others; `--option` type coercion |
+| `test_live_trellis2.py` (1) | Gated behind `CHARCTX_LIVE=1`; skipped in this run |
+
+Fixtures: `tests/fixtures/trellis2_view_api.json` is the live Space's own API
+description, recorded once with no GPU cost — so the offline suite checks the
+real contract. All mesh fixtures are constructed at test time with trimesh,
+so no binary data enters the repository.
+
+### Data Workspace
+
+One file was added to the co-workspace through its documented intake flow:
+`inputs/references/trellis-example-dragon.png` (563,963 bytes, unmodified
+original) with `trellis-example-dragon.provenance.md` beside it recording
+source URL, origin, acquisition date, and rights. Nothing else in the data
+workspace was modified; `generated/` remains empty.
+
 ## Known Gaps
 
-- Commercial free tiers (Meshy, Tripo, Rodin) are still unprobed, so Phase 1
-  is not complete and the first backend is not finally selected.
-- `tencent/Hunyuan3D-2.1` and `tencent/Hunyuan3D-2mini-Turbo` were observed
-  `RUNNING` during Space discovery but were never called; the two-stage
-  Hunyuan contract remains asserted from documents.
-- No quality judgement was made on either TRELLIS output — only measurement.
-  Choosing between the fast, low-poly community Space and the official
-  high-density `TRELLIS.2` needs a real dragon reference and more quota.
-- Still no repository environment, package, CLI, or test suite: `uv sync`,
-  `pytest`, `ruff`, and `charctx fetch blender` remain unproven (Phases 2–6).
+- **One exit criterion is unmet: no live `charctx generate` has produced a
+  mesh.** The path is proven up to the GPU reservation; the free ZeroGPU
+  budget was spent by the Phase 1 experiment on the same day. Repeat the
+  documented command after the quota resets.
+- The `live` smoke test has never run green, for the same reason.
+- Commercial free tiers (Meshy, Tripo, Rodin) are unprobed by maintainer
+  direction, and the Hunyuan3D Spaces were never called; both remain
+  documented alternatives asserted from documents rather than exercised.
+- No quality judgement on any generated mesh - only measurement. Choosing
+  between TRELLIS.2 and the faster, lower-density community Space on output
+  quality needs a real dragon reference and more quota.
+- Blender is provisioned and verified, but no pipeline stage invokes it, so
+  the subprocess boundary is specified and untested.
+- `charctx fetch` handles zip archives only, and the Blender pin is
+  Windows-only; another platform is refused with a clear message rather than
+  silently given a wrong binary.
+- The canonical layer does not exist: `CanonicalizationResult` and
+  `RiggedCharacterResult` are validated shapes with no behavior behind them.
 - Provider behavior is a moving target and this proof is a snapshot: Space
   runtime stages, quota rules, and router catalogues were true on 2026-08-25
-  and are re-provable by re-running the scripts in `experiments/`.
+  and are re-provable by re-running `experiments/` and the suite.

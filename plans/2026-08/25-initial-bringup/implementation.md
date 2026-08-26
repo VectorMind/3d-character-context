@@ -2,9 +2,11 @@
 
 ## Progress
 
-`▰▱▱▱▱▱▱ Phase 1/6` — free-access experiment: Hugging Face paths validated
-end to end (REST inference + TRELLIS Spaces, one GLB proven); commercial free
-tiers (Meshy, Tripo, Rodin) not yet probed, then Phase 2 (environment).
+`▰▰▰▰▰▰▱ Phases 1-6 built, live generate unproven` — every phase is
+implemented (environment, contracts, project folder, TRELLIS.2 backend, mesh
+report, CLI, specs, 65 offline tests); the one open proof is a live
+`charctx generate` producing a mesh, blocked until the ZeroGPU daily quota
+resets.
 
 ## 2026-08-25 — Phase 1, Hugging Face free access
 
@@ -155,3 +157,186 @@ several — they are the only free Hugging Face path to image-to-3d.
   reference is a separate call, and needs quota.
 - `tencent/Hunyuan3D-2.1` and `tencent/Hunyuan3D-2mini-Turbo` were seen
   RUNNING during discovery but were not called.
+
+## 2026-08-25 — Phases 2-6, full bringup implementation
+
+Maintainer direction for this pass: commit to the TRELLIS path with
+`microsoft/TRELLIS.2` as the backend, leave the commercial providers out
+entirely for now, and implement as much of the plan as possible even if some
+proof has to wait.
+
+### What Landed
+
+| Area | Files |
+| --- | --- |
+| Environment | `pyproject.toml`, `.python-version` (3.12), `uv.lock` |
+| Configuration | `config/providers.yaml`, `config/artifacts.yaml` |
+| Package core | `src/character_context/{__init__,__main__,paths,config,contracts,project,mesh_report,artifacts,cli}.py` |
+| Backend | `src/character_context/backends/{__init__,trellis2}.py` |
+| Tests | `tests/{conftest,test_contracts,test_config,test_project,test_mesh_report,test_artifacts,test_backend_trellis2,test_cli,test_live_trellis2}.py`, `tests/fixtures/trellis2_view_api.json` |
+| Specs | `specifications/{workspace-layout,agent-interface,generator-backend,mesh-report,external-tools}/spec.md` + index |
+| Docs | `README.md` rewritten as the command reference; `AGENTS.md` current state |
+
+### Phase 2 — Environment
+
+`uv sync` produces a working environment on Windows with Python 3.12.13.
+Base dependencies: pydantic, pyyaml, gradio-client, httpx, numpy, trimesh,
+plus **networkx and scipy as mandatory** — trimesh cannot count connected
+components without a graph engine, and that metric is part of the mesh-report
+contract, so it is not left to chance (OP-010 doctrine applied concretely).
+Dev group: pytest, ruff. Line length 88, ruff rules `E,F,W,I,UP,B`.
+
+`charctx fetch blender` provisioned the pinned build from
+`config/artifacts.yaml` alone and verified it: **`Blender 5.2.1 LTS`**. Two
+facts worth recording:
+
+- the 405 MB download is checksum-verified against the vendor's published
+  `blender-5.2.1.sha256` before extraction, and a re-fetch reuses the cached
+  archive instead of re-downloading;
+- **5.2.1 identifies itself as LTS.** The plan treated the 5.x line as
+  non-LTS and flagged faster churn as a risk; the running binary contradicts
+  that, so the risk is smaller than recorded and the 4.5 fallback is less
+  likely to be needed.
+
+One real bug surfaced and was fixed: renaming the freshly extracted directory
+failed with `PermissionError: [WinError 5]` because Windows still held
+handles on hundreds of just-written executables. The rename now retries with
+backoff and falls back to a copy.
+
+### Phase 3 — Contracts And Project Folder
+
+Four pydantic models in `contracts.py`, all `extra="forbid"`:
+`GenerationRequest` and `RawCharacterResult` in use, `CanonicalizationResult`
+and `RiggedCharacterResult` reserved for milestones 2-4, plus
+`MeshMeasurements`. `GenerationRequest` validates that reference images exist
+and that the run name is a filesystem-safe slug; `RawCharacterResult`
+validates the artifact is a mesh. Backend knobs live in `options`, so adding
+a backend never grows the model.
+
+`project.py` implements selection (`--project`, then `CHARCTX_PROJECT` from
+`.env`), scaffolding, and `run_slot()` — the append-only allocator. Slots
+increment `<name>-<NNN>`, skip numbers already taken, and are created with
+`exist_ok=False` so two concurrent runs cannot collide on one folder.
+Scaffolding inside the repository is refused outright.
+
+The real co-workspace is selected and exercised:
+`C:\Users\wassi\My Drive\Projects\3d-models\characters-generation` — a path
+with spaces on a cloud-synced drive. All artifact writes go to a temporary
+name and are renamed into place so a sync client never uploads a half-written
+file.
+
+### Phase 4 — TRELLIS.2 Backend
+
+`backends/trellis2.py` drives `microsoft/TRELLIS.2` through `gradio_client`.
+Four decisions came straight out of the Phase 1 findings:
+
+1. **Every declared parameter is sent**, with defaults read from the Space's
+   own `view_api` rather than hardcoded. A partial list fails opaquely; a
+   hardcoded default silently diverges when the Space changes.
+2. **Session ordering is explicit** — `/start_session`, `/preprocess_image`,
+   `/image_to_3d`, `/extract_glb` on one client, because the Space holds the
+   generated asset in session state between the last two calls.
+3. **Quota refusal is its own error type** (`QuotaExhausted`), carrying the
+   provider's own message with its numbers and reset time unedited.
+4. **A changed Space API is reported, not guessed at**: a configured endpoint
+   that no longer exists produces an error naming it and listing what the
+   Space exposes now.
+
+Options precedence is config defaults, then per-request `--option` overrides.
+Each run slot ends up self-contained: `<name>.glb`,
+`<name>.measurements.json`, a copy of the reference image, and `request.json`
+(backend, space, call shape, request, resolved options, timestamps,
+artifacts). Provider-native payloads never leave the module — a test asserts
+the Gradio temp paths and preview-video names do not appear in the result.
+
+Added during the pass: a run that brings back nothing removes its empty slot.
+Append-only protects results, not empty folders, and an empty slot would
+otherwise be mistaken for a run that produced something.
+
+### Phase 5 — Mesh Report
+
+`mesh_report.measure()` loads any GLB/glTF/OBJ/PLY/STL, concatenates its
+sub-meshes, and reports the handoff's milestone-1 metrics plus degenerate
+faces, centroid, and sampled points. `volume` is emitted **only** when the
+mesh is watertight — reporting a volume for an open surface would be a
+meaningless number presented as a fact.
+
+`measure()` writes nothing; `write_measurements()` writes the
+`<stem>.measurements.json` sidecar atomically. `charctx report` works on any
+local mesh, so mesh verification is fully testable with no provider call.
+
+### Phase 6 — Proof, CLI, Specs
+
+CLI commands: `info`, `paths`, `backends`, `project init|info`, `fetch`,
+`generate`, `report`. Built on argparse — no CLI framework dependency, and
+full control over the `--json` shape that agents consume. Global `--project`
+and `--json` are accepted **before or after** the subcommand (shared parent
+parser with suppressed defaults), because `charctx report mesh.glb --json` is
+what people actually type. Exit codes: 0 success, 2 configuration/usage, 1
+other; errors print one line, never a traceback.
+
+65 offline tests pass and `ruff check .` is clean. The backend is tested
+against `tests/fixtures/trellis2_view_api.json`, the Space's real API
+description recorded live — so the offline suite checks the actual contract,
+not an invented one. Mesh tests build their own geometry (icosphere, boxes),
+so no binary fixture enters the repository.
+
+Five specs folded, indexed in `specifications/README.md`: workspace-layout,
+agent-interface, generator-backend (with the Phase 1 access facts, the
+documented alternatives table, and the staged geometry libraries),
+mesh-report, external-tools.
+
+### Decisions Made During This Pass
+
+- **argparse over a CLI framework.** The plan did not name one. argparse is
+  stdlib, keeps the base dependency list at what the pipeline genuinely
+  needs, and leaves the JSON contract fully under our control.
+- **Credential masking reveals nothing.** `mask()` reports presence and
+  length only (`set (37 chars)`), not a prefix. The agent-interface spec says
+  a credential value never appears in output; a four-character prefix is
+  still part of the value.
+- **`networkx` and `scipy` are mandatory, not optional.** Discovered in Phase
+  1 when a successful, quota-costing generation was lost to
+  `ImportError: no graph engines available!` during measurement.
+- **The reference image entered the data workspace through its intake flow.**
+  `inputs/references/trellis-example-dragon.png` with a `.provenance.md`
+  sidecar recording source URL, origin, acquisition date, bytes, and rights.
+  The bytes are the unmodified original. It is a pipeline test input, not
+  artwork for a production character.
+
+### Deviations From The Plan
+
+- Commercial free tiers (Meshy, Tripo, Rodin) were not probed — maintainer
+  direction to leave them out. They stay documented alternatives in
+  `config/providers.yaml` and the generator-backend spec.
+- The plan's Phase 1 selected a backend "from the facts"; the maintainer
+  selected `microsoft/TRELLIS.2` directly. `trellis-community/TRELLIS` is
+  documented as the faster, lower-density alternative.
+- `charctx backends` is a command the plan's skeleton did not list. It exists
+  because the implemented/documented distinction has to be visible from the
+  CLI, not only from a YAML file.
+
+### Open After This Pass
+
+- **A live `charctx generate` has not produced a mesh yet.** The full path was
+  exercised against the real Space — connect, session, preprocess, and the
+  full-parameter `/image_to_3d` call — and stopped exactly where expected:
+  *"You have exceeded your free ZeroGPU quota (120s requested vs. 156s left).
+  Try again in 23:26:18."* The day's budget was spent on the Phase 1
+  experiment. The empty slot was correctly discarded. This resolves after the
+  quota resets (~22:20 local on 2026-08-26) with:
+
+  ```powershell
+  uv run charctx generate "$env:CHARCTX_PROJECT\inputs\references\trellis-example-dragon.png" --name red-dragon --seed 42
+  ```
+
+- The live smoke test (`tests/test_live_trellis2.py`, marked `live`) is
+  written and gated behind `CHARCTX_LIVE=1`; it has never run green.
+- No canonical layer: template topology, landmarks, skeleton, and fitting are
+  milestones 2-5 and unstarted. `CanonicalizationResult` and
+  `RiggedCharacterResult` are shapes, not behavior.
+- Blender is provisioned and verified but **no pipeline stage calls it yet**;
+  the subprocess invocation pattern is specified, not exercised.
+- `charctx fetch` supports zip archives only, and `config/artifacts.yaml`
+  carries a Windows-only pin. A non-Windows platform is refused with a clear
+  message rather than a wrong binary.

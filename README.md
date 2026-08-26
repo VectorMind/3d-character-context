@@ -1,10 +1,10 @@
 # 3d-character-context
 
 A generative-first 3D character workbench. A hosted generative 3D model
-(TRELLIS, Hunyuan3D, or a commercial baseline) invents novel character
-geometry from reference images; a deterministic canonicalization layer then
-transforms that arbitrary mesh into a **known canonical topology**, fits a
-**known skeleton**, and exports predictable production assets (GLB/FBX).
+(TRELLIS) invents novel character geometry from reference images; a
+deterministic canonicalization layer then transforms that arbitrary mesh into
+a **known canonical topology**, fits a **known skeleton**, and exports
+predictable production assets (GLB/FBX).
 
 V1 targets exactly one character family:
 
@@ -17,14 +17,18 @@ The guiding rule:
 
 ## Status
 
-The repository is in initial bringup — planning stage, no code yet. The
-active packet is
+The hosted-generation slice is implemented: contracts, the external project
+folder, the TRELLIS.2 backend, mesh measurement, external-tool provisioning,
+and the `charctx` CLI. The canonical layer - template topology, landmarks,
+skeleton fitting, appearance transfer - is not built yet.
+
+The active packet is
 [`plans/2026-08/25-initial-bringup/plan.md`](plans/2026-08/25-initial-bringup/plan.md),
-which carries the open design decisions (naming, first hosted backend,
-geometry stack staging, canonical asset sourcing, …). The founding
+with what actually landed in
+[`implementation.md`](plans/2026-08/25-initial-bringup/implementation.md) and
+proof in [`test.md`](plans/2026-08/25-initial-bringup/test.md). The founding
 architecture document is
-[`handoff.md`](plans/2026-08/25-initial-bringup/handoff.md) in the same
-packet.
+[`handoff.md`](plans/2026-08/25-initial-bringup/handoff.md).
 
 ## Architecture
 
@@ -35,10 +39,10 @@ packet.
              │                     │
        Generative Layer      Canonical Layer
              │                     │
-     TRELLIS / Hunyuan       western_dragon_v1
-     Tripo / Meshy / Rodin        │
-             │                fixed topology
-             │                fixed skeleton
+     TRELLIS.2 (implemented)  western_dragon_v1
+     Hunyuan / commercial          │
+       (documented)            fixed topology
+             │                 fixed skeleton
              │                     │
              └──────────┬──────────┘
                         ↓
@@ -51,41 +55,224 @@ packet.
                     GLB / FBX
 ```
 
-The generator backend is replaceable infrastructure behind a protocol and
-registry; the canonical layer (topology, landmarks, skeleton, verification)
-is the durable product. Heavy 3D generation is not self-hosted: backends call
-hosted inference providers over HTTPS and download mesh artifacts.
+The generator backend is replaceable infrastructure; the canonical layer is
+the durable product. Heavy 3D generation is not self-hosted: backends call
+hosted inference over HTTPS and download mesh artifacts.
 
-## Planned Interface
+## Setup
 
-Once the bringup packet lands, the repository follows the same interface rule
-as its sibling `cad-context`: one documented CLI — `charctx` (OP-001,
-accepted) — as the single interface for humans and agents, plus a
-side-effect-free Python API. Every capability ships with its command and its
-README entry together; this section becomes the command reference.
+```powershell
+uv sync
+```
 
-First milestone target:
+Then create a git-ignored `.env` at the repository root:
+
+```ini
+HF_TOKEN=hf_...
+CHARCTX_PROJECT=C:\path\to\your\characters-generation
+```
+
+`HF_TOKEN` needs the `inference.serverless.write` scope. `CHARCTX_PROJECT`
+points at the external data folder - all images and meshes live there, never
+in this repository. Scaffold one with `charctx project init <path>`.
+
+## Command Reference
+
+`charctx` is the single documented interface for humans and agents. Every
+command accepts `--json` for machine-readable output and `--project PATH` to
+override the selected project, before or after the subcommand.
+
+### `charctx info`
+
+Workspace state: version, selected project, which backends are credentialed,
+which tools are provisioned. Never prints a credential.
+
+```powershell
+uv run charctx info
+```
 
 ```text
-reference image
-      ↓ hosted generation
-raw_dragon.glb
-      ↓ trimesh inspection
-raw_dragon.measurements.json
+charctx 0.1.0 (python 3.12.13)
+repository : C:\dev\VectorMind\3d-character-context
+project    : C:\Users\wassi\My Drive\Projects\3d-models\characters-generation
+
+backends:
+  trellis2 (default): microsoft/TRELLIS.2 - credentialed
+
+tools:
+  blender 5.2.1: installed
 ```
+
+### `charctx paths`
+
+Every location the workspace reads from or writes to - repository, config,
+`.tools/`, each `.cache/` directory, and the selected project's data roots.
+
+```powershell
+uv run charctx paths
+```
+
+### `charctx backends`
+
+Implemented backends and documented alternatives, kept visibly distinct. An
+alternative has no code behind it and cannot be selected.
+
+```powershell
+uv run charctx backends
+```
+
+### `charctx project init [path]`
+
+Scaffold the conventional project layout (`inputs/`, `generated/`,
+`assets/`). Refuses any path inside this repository.
+
+```powershell
+uv run charctx project init "C:\Users\you\My Drive\Projects\3d-models\characters-generation"
+```
+
+### `charctx project info`
+
+Report the active project folder, whether it is scaffolded, and how many
+files each data root holds.
+
+```powershell
+uv run charctx project info
+```
+
+### `charctx fetch <tool>`
+
+Provision an external tool declared in `config/artifacts.yaml` into
+`.tools/`, verifying its checksum before extraction and running its version
+command afterwards. Nothing is fetched implicitly.
+
+```powershell
+uv run charctx fetch blender
+```
+
+```text
+blender 5.2.1 provisioned
+  executable: C:\dev\VectorMind\3d-character-context\.tools\blender\blender.exe
+  verified  : Blender 5.2.1 LTS
+```
+
+Add `--force` to re-download and re-extract.
+
+### `charctx generate <image> --name <slug>`
+
+Send a reference image through a hosted backend and land the result in a
+fresh, append-only run slot, then measure it.
+
+```powershell
+uv run charctx generate "$env:CHARCTX_PROJECT\inputs\references\red-dragon.png" --name red-dragon --seed 42
+```
+
+```text
+  connecting to microsoft/TRELLIS.2
+  preprocessing reference image
+  generating 3D asset (reserves GPU quota)
+  extracting GLB
+generated in 63.4s via microsoft/TRELLIS.2
+  run  : ...\generated\trellis2\red-dragon-001
+  mesh : red-dragon.glb
+  report: red-dragon.measurements.json
+  192190 vertices, 293665 faces, 3320 component(s), watertight=False
+```
+
+The slot holds the mesh, its measurements, a copy of the reference image, and
+`request.json` (backend, Space, resolved options, seed, timestamps). Running
+the same command again creates `red-dragon-002` and overwrites nothing.
+
+| Flag | Effect |
+| --- | --- |
+| `--backend <key>` | Use a specific configured backend (default: `trellis2`) |
+| `--seed <int>` | Generation seed |
+| `--option KEY=VALUE` | Override a backend option; repeatable |
+| `--no-report` | Skip measuring the downloaded mesh |
+
+**Cost:** TRELLIS.2 runs on shared ZeroGPU hardware. Each call reserves 120 s
+of a small daily budget up front - roughly four generations per day on a free
+account - shared across every ZeroGPU Space the account touches. When the
+budget is spent, the command reports the provider's own message including
+when it resets, and no empty run slot is left behind.
+
+### `charctx report <mesh>`
+
+Measure any local mesh - GLB, glTF, OBJ, PLY, STL - and write its
+`*.measurements.json` sidecar. Works without any provider call.
+
+```powershell
+uv run charctx report path\to\mesh.glb
+```
+
+```text
+C:\...\generated\trellis2\red-dragon-001\red-dragon.glb
+  format     : glb (9,965,912 bytes, 1 geometry/ies)
+  vertices   : 192,190
+  faces      : 293,665
+  extents    : 0.7991 x 0.5952 x 0.9970
+  bounds     : -0.3995 -0.2978 -0.4975  ->  0.3996 0.2975 0.4996
+  area       : 2.0044
+  volume     : n/a (not watertight)
+  watertight : False
+  components : 3320
+  degenerate : 1 face(s)
+  finite     : True
+  textured   : True
+  sampled    : 2048 surface point(s)
+  plausible  : True
+```
+
+| Flag | Effect |
+| --- | --- |
+| `--output PATH` | Write the sidecar somewhere else |
+| `--backend`, `--name` | Record provenance in the sidecar |
+| `--no-write` | Print metrics without writing a sidecar |
+
+## Python API
+
+The second surface is side-effect-free: it returns data and writes nothing.
+Producing artifacts stays an explicit act through the CLI or through
+functions named for the write they perform.
+
+```python
+from character_context import measure
+
+m = measure("path/to/mesh.glb")
+print(m.vertices, m.faces, m.connected_components, m.is_plausible)
+```
+
+## Experiments
+
+[`experiments/`](experiments/README.md) holds standing provider-access probes
+run with `uv run --script` - no environment needed. They answer "is this
+provider reachable, and what does it actually offer today?" and write
+timestamped reports into `.cache/results/`.
+
+## Testing
+
+```powershell
+uv run pytest          # offline, free: no provider call
+uv run ruff check .
+```
+
+The default suite never touches a provider. One live smoke test is marked
+`live` and runs only with `CHARCTX_LIVE=1 uv run pytest -m live`; it costs GPU
+quota and writes a real run into the project folder.
 
 ## Workflow
 
 Development is spec-driven; see [`WORKFLOW.md`](WORKFLOW.md) for the full
-rules and [`AGENTS.md`](AGENTS.md) for the operational summary that agents
-read first.
+rules and [`AGENTS.md`](AGENTS.md) for the operational summary agents read
+first.
 
 - [`specifications/`](specifications/README.md) — durable binding contracts.
 - [`plans/`](plans/README.md) — dated planning packets;
   [`open.md`](plans/open.md) and [`closed.md`](plans/closed.md) index their
   status.
-- External project folder (uncommitted) — all input images, generated
-  meshes, and canonical template assets; the code repo holds no data.
-- `.cache/` — operational output only (derived, git-ignored).
+- [`config/`](config/) — endpoints, Space ids, and tool pins. Never secrets.
+- External project folder (uncommitted) — all input images, generated meshes,
+  and canonical assets.
+- `.cache/`, `.tools/` — operational output and provisioned binaries;
+  git-ignored.
 
 The maintainer owns all git operations.

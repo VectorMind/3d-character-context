@@ -7,9 +7,13 @@ accepted OP-011…OP-013 with amendments (free-access experiment phase,
 `.env`-based project selection with a designated co-workspace,
 artifacts-fetch-provisioned Blender); decision pass 3 (2026-08-25) settled
 the Blender pin on the 5.x line (5.2.1) for its new character-rigging
-features. Phase 1 in progress: the Hugging Face free-access paths are
-validated (see [`implementation.md`](./implementation.md)); the commercial
-free tiers remain to probe before the backend is finally selected.
+features. Implementation: Phases 1-6 are built against
+`microsoft/TRELLIS.2` as the selected backend (maintainer direction: TRELLIS
+path only, commercial providers out of scope for now). What landed is in
+[`implementation.md`](./implementation.md) and its proof in
+[`test.md`](./test.md); one exit criterion is outstanding - a live
+`charctx generate` producing a mesh, blocked until the free ZeroGPU daily
+quota resets.
 
 The founding architecture document for this repository is
 [`handoff.md`](./handoff.md) in this packet. This plan scopes the first
@@ -41,7 +45,7 @@ below).
 | --- | --- | --- | --- | --- |
 | OP-001 | Package and CLI naming | `character_context` package, `charctx` CLI | high | **accepted 2026-08-25** |
 | OP-002 | Python version and tooling | uv + hatchling, ruff + pytest, `>=3.11,<3.13`, pin 3.12 — pin confirmed since OP-013 selected the external binary, not the `bpy` wheel | high | **accepted 2026-08-25** |
-| OP-003 | First hosted generation backend | Hugging Face first; fal.ai, Hunyuan3D endpoints, and commercial APIs documented as alternatives only (README/spec), no code for them | medium | **accepted 2026-08-25 with amendment** |
+| OP-003 | First hosted generation backend | Hugging Face first; **selected: `microsoft/TRELLIS.2` Space** (implemented). fal.ai, Hunyuan3D, the community TRELLIS Space, and commercial APIs are documented alternatives only, no code | high | **accepted 2026-08-25 with amendment**; backend selected and implemented |
 | OP-004 | Backend abstraction depth | Relaxed: shared pydantic contracts + one concrete backend module; no protocol/registry machinery until a second backend actually lands; backend-specific behavior stays specific | medium | **accepted 2026-08-25 with amendment** |
 | OP-005 | Geometry stack staging | Milestone 1: numpy + trimesh only; Open3D / PyTorch3D / PyMeshLab / libigl documented as staged alternatives, not installed | high | **accepted 2026-08-25** |
 | OP-006 | Output layout and paid-result caching | Append-only: every paid generation gets its own new folder, never overwritten; generation artifacts live in the project folder (OP-009), repository `.cache/` keeps operational output | high | **accepted 2026-08-25 with amendment** |
@@ -49,7 +53,7 @@ below).
 | OP-008 | Single-interface rule | Documented CLI for humans and agents, side-effect-free Python API, no agent skills | high | **accepted 2026-08-25** |
 | OP-009 | Data/code split | Code repo holds only code and contracts; all input images, generated meshes, and canonical assets live in an external, uncommitted project folder — removing licensing constraints and enabling any base model; full automation, no hand-modelling dependence | high | **accepted 2026-08-25 with amendment** (contract details → OP-012) |
 | OP-010 | Blender role | Blender is a first-class mandatory workspace tool, not optional: any library a pipeline stage needs is installed as part of the main flow, no redundant-optional variants | high | **accepted 2026-08-25 with amendment** (mechanism → OP-013) |
-| OP-011 | Hugging Face access mechanism | `gradio_client` against public Spaces, HF token from `.env` — gated by a **free-access experiment phase**. HF half run 2026-08-25: REST inference serves no `image-to-3d`, so a Space is the only free HF path; `microsoft/TRELLIS` is down, `trellis-community/TRELLIS` and `microsoft/TRELLIS.2` both deliver measured GLBs at ~4 free generations/day | high for the mechanism; backend choice pending the commercial-tier probe | **accepted 2026-08-25 with amendment**; HF paths validated |
+| OP-011 | Hugging Face access mechanism | `gradio_client` against public Spaces, HF token from `.env` — gated by a **free-access experiment phase**. HF half run 2026-08-25: REST inference serves no `image-to-3d`, so a Space is the only free HF path; `microsoft/TRELLIS` is down, `trellis-community/TRELLIS` and `microsoft/TRELLIS.2` both deliver measured GLBs at ~4 free generations/day | high | **accepted 2026-08-25 with amendment**; mechanism validated and implemented against `microsoft/TRELLIS.2` |
 | OP-012 | Project-folder contract | Project path given by the user and stored in this workspace's `.env` (`CHARCTX_PROJECT`); `--project` overrides per command; conventional `inputs/ generated/ assets/` layout; designated co-workspace: `C:\Users\wassi\My Drive\Projects\3d-models\characters-generation`; no manifest | high | **accepted 2026-08-25 with amendment** |
 | OP-013 | Blender install mechanism | Managed by an artifacts-fetch mechanism (`config/artifacts.yaml` + `charctx fetch blender`) downloading the official portable zip from `download.blender.org` (verified: stable versioned paths; GitHub is a source mirror with no binaries) into `.tools/`; pinned to **Blender 5.2.1** for the 5.x line's new character-rigging features | high | **accepted 2026-08-25** (pin settled in pass 3) |
 

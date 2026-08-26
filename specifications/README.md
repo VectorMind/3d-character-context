@@ -8,22 +8,24 @@ Create one folder per specification:
 specifications/<slug>/spec.md
 ```
 
-Specifications should describe the problem, intended behavior, constraints,
+Specifications describe the problem, intended behavior, constraints,
 interfaces, acceptance criteria, and non-goals. Keep implementation schedules
 and running notes in `plans/` instead.
 
 ## Current Specifications
 
-None yet. The initial bringup packet
-(`plans/2026-08/25-initial-bringup/plan.md`) is expected to fold its accepted
-decisions into first specs covering, at minimum:
+| Specification | Covers |
+| --- | --- |
+| [workspace-layout](workspace-layout/spec.md) | The data/code split, the external project folder and its selection, append-only generation slots, `.cache/` and `.tools/`, secret handling |
+| [agent-interface](agent-interface/spec.md) | The single documented CLI, the side-effect-free Python API, exit codes, JSON output, failure reporting |
+| [generator-backend](generator-backend/spec.md) | The backend boundary and its contracts, hosted-access facts and quota behavior, documented backend alternatives, staged geometry libraries |
+| [mesh-report](mesh-report/spec.md) | What a measured mesh fact is, the sidecar contract, and the verification level each pipeline stage owes |
+| [external-tools](external-tools/spec.md) | Declaring, pinning, checksum-verifying, and provisioning external binaries |
 
-- workspace layout and output locations;
-- the agent interface (single documented CLI plus side-effect-free Python
-  API);
-- the generator-backend contract (request/response models, registry,
-  isolation of provider-native responses);
-- mesh measurement and verification rules;
-- canonical asset conventions (coordinate system, scale, orientation,
-  naming, landmark and skeleton schemas) — required before any non-rigid
-  fitting work begins.
+## Not Yet Specified
+
+Canonical asset conventions - coordinate system, scale, orientation, naming,
+landmark and skeleton schemas, and region definitions - are required before
+any canonicalization or non-rigid fitting work begins. The reserved
+`CanonicalizationResult` and `RiggedCharacterResult` contracts carry the
+conventions those stages inherit.

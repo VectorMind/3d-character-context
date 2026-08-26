@@ -1,0 +1,65 @@
+# Hosted generation providers: endpoints, Space ids, and call shapes.
+# Credentials NEVER appear here - they come from environment variables or the
+# git-ignored `.env` (see `credential` below for the variable name).
+
+default_backend: trellis2
+
+backends:
+  trellis2:
+    description: >-
+      Microsoft TRELLIS.2 image-to-3D, driven through its public Gradio Space.
+      Hugging Face serverless inference serves no image-to-3d model at all, so
+      a Space is the only free path to this model.
+    provider: huggingface-space
+    space: "microsoft/TRELLIS.2"
+    credential: HF_TOKEN
+    # Session-stateful three-call shape: the Space holds the generated asset
+    # between /image_to_3d and /extract_glb, so both calls share one client.
+    call_shape: session-stateful
+    endpoints:
+      session: /start_session
+      preprocess: /preprocess_image
+      generate: /image_to_3d
+      extract: /extract_glb
+    # Every declared parameter is sent on each call: this Space rejects a
+    # partial parameter list with an opaque upstream error. Values not listed
+    # here are taken from the Space's own API description at call time.
+    options:
+      resolution: "1024"
+      ss_sampling_steps: 12
+      shape_slat_sampling_steps: 12
+      tex_slat_sampling_steps: 12
+      texture_size: 1024
+    # Shared ZeroGPU hardware: each call reserves a fixed slice of a small
+    # daily budget, so results are never discarded (append-only, OP-006).
+    quota:
+      hardware: zero-a10g
+      reserved_seconds_per_call: 120
+      free_tier_note: "~4 generations/day; HF PRO raises it to 25 min/day"
+
+# Alternatives kept as documentation only - no code exists for them. See
+# specifications/generator-backend/spec.md for what each offers and how it
+# would be integrated.
+alternatives:
+  trellis-community:
+    provider: huggingface-space
+    space: "trellis-community/TRELLIS"
+    call_shape: single-call
+    note: >-
+      Original TRELLIS behind one /generate_and_extract_glb call. ~3x faster
+      and far simpler, but roughly 10k vertices against TRELLIS.2's ~190k.
+  trellis-official-v1:
+    provider: huggingface-space
+    space: "microsoft/TRELLIS"
+    note: "Observed in CONFIG_ERROR on 2026-08-25; superseded by TRELLIS.2."
+  hunyuan3d:
+    provider: huggingface-space
+    space: "tencent/Hunyuan3D-2.1"
+    note: >-
+      Two-stage shape generation then texture paint, each with its own
+      options. Observed RUNNING but never called.
+  commercial:
+    note: >-
+      Meshy, Tripo, and Rodin expose task-based REST APIs (create task, poll
+      job id, download results) and bundle extras such as remeshing and
+      rigging. Unprobed; each needs its own account and credential.

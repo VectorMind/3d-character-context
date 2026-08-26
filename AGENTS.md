@@ -6,13 +6,36 @@ defined in `WORKFLOW.md`.
 
 ## Current State
 
-The repository is in initial bringup. There is no Python package, CLI, or
-canonical asset yet — the only executable code is `experiments/`, standing
-provider-access probes run with `uv run --script`. The active planning packet
-is `plans/2026-08/25-initial-bringup/`; its `plan.md` carries the design
-decisions (OP-001…), `implementation.md` logs what has actually landed, and
-`handoff.md` is the founding architecture document. Check `plans/open.md` for
-what is outstanding before starting work.
+The hosted-generation slice is implemented and the canonical layer is not.
+What exists: the `charctx` CLI (`info`, `paths`, `backends`, `project`,
+`fetch`, `generate`, `report`), pydantic contracts, the external project
+folder with append-only run slots, the `microsoft/TRELLIS.2` backend,
+trimesh mesh measurement, and external-tool provisioning (Blender 5.2.1 in
+`.tools/`). What does not exist: canonical topology, landmarks, skeleton
+fitting, rigging, appearance transfer.
+
+Read `README.md` for the command reference and `specifications/README.md` for
+the binding contracts. The active packet is
+`plans/2026-08/25-initial-bringup/`: `plan.md` carries the design decisions
+(OP-001…), `implementation.md` logs what actually landed, `test.md` holds the
+proof, and `handoff.md` is the founding architecture document. Check
+`plans/open.md` for what is outstanding before starting work.
+
+Standing provider-access probes live in `experiments/`, run with
+`uv run --script`. Use them to re-establish what a provider offers today
+rather than trusting a document.
+
+## Working Rules
+
+- `uv run pytest` and `uv run ruff check .` before declaring work done. The
+  default suite is offline and free; tests marked `live` run only with
+  `CHARCTX_LIVE=1` and cost GPU quota.
+- Hosted generation is metered: TRELLIS.2 reserves 120 s of a small daily
+  ZeroGPU budget per call - roughly four generations per day on a free
+  account - so do not spend a call on something a fixture or `charctx report`
+  can prove.
+- Add a command and its `README.md` entry together. A capability with no
+  documented command is not delivered.
 
 ## Architecture In One Glance
 
@@ -35,7 +58,7 @@ the product. Backend-native responses must never leak past the generator
 boundary — the pipeline operates on normalized mesh artifacts and pydantic
 contracts only.
 
-## Two Surfaces (once the bringup lands)
+## Two Surfaces
 
 The CLI is the single documented interface for humans and agents. A
 capability not reachable through a documented command is not delivered; add a
