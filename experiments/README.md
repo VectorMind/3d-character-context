@@ -31,6 +31,21 @@ masked in every report.
 | --- | --- |
 | `hf_01_hello_inference.py` | The `HF_TOKEN` authenticates; the Inference Providers router answers; a hello-world chat completion round-trips; the legacy `api-inference` host is gone; **no** `image-to-3d` model is served by REST inference. |
 | `hf_02_trellis_space.py` | Which TRELLIS Spaces are up; their real Gradio API surface; a reference image goes in and a GLB comes back; the GLB re-loads and measures. |
+| `hf_03_live_validation.py` | That `charctx generate` itself works end to end: it drives the real CLI, lands meshes in the project folder, and verifies each run slot. Quota-aware - it waits out a refusal using the provider's own reset time. |
+
+`hf_03_live_validation.py` runs in the **project environment**, not as a
+standalone script, because it drives the installed CLI:
+
+```powershell
+uv run python experiments/hf_03_live_validation.py --runs 3
+```
+
+| Flag | Effect |
+| --- | --- |
+| `--runs N` | How many generations to attempt |
+| `--name`, `--seed` | Run slug and starting seed (each run increments the seed) |
+| `--image PATH` | Reference image (default: the project's `inputs/references/trellis-example-dragon.png`) |
+| `--no-wait` | Fail immediately on a quota refusal instead of waiting it out |
 
 Useful flags for `hf_02_trellis_space.py`:
 

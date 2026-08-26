@@ -1,8 +1,9 @@
 # Plan — Western-Dragon Donor Corpus Acquisition
 
 Date: 2026-08-25  
-Status: Planning — OP-001…OP-010 await maintainer review; no collection has
-started  
+Status: Planning — OP-001…OP-010 await maintainer review; three manually
+collected candidates were inventoried on 2026-08-26 but are not yet organized,
+provenanced, or accepted as donors
 Basis:
 [`dragon_blender_rigging_handoff.md`](../25-rigging/dragon_blender_rigging_handoff.md),
 especially sections 8–16 and milestone 2A
@@ -32,6 +33,15 @@ C:\Users\wassi\My Drive\Projects\3d-models\characters-generation
 
 That folder is authoritative for the data and its provenance. The repository
 is authoritative for acquisition contracts, automation, and verification.
+
+On 2026-08-26 the maintainer placed two BLEND files and one ZIP package directly
+under `assets/collected/`. This is a useful early pilot, but it deliberately
+does not resolve the open source-system questions: the files have no adjacent
+source/license records and have not entered the proposed package lifecycle.
+Their safe migration, inspection, preview generation, and catalog presentation
+are scoped by the linked
+[`Dragon Asset Catalog And Web Viewer`](../26-dragon-asset-catalog-viewer/plan.md)
+packet.
 
 ## Resolution Summary
 

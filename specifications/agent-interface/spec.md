@@ -47,6 +47,12 @@ function named for the write it performs (`write_measurements`, `fetch`,
 | `charctx fetch <tool>` | Provision a declared external tool and verify it runs. |
 | `charctx generate <image> --name <slug>` | Reference image through a hosted backend into a fresh append-only run slot; measures the result unless `--no-report`. |
 | `charctx report <mesh>` | Measure any local mesh artifact and write its sidecar unless `--no-write`. |
+| `charctx assets inspect` | Read-only inspection of loose collected candidates and existing asset packages, including proposed organization paths. |
+| `charctx assets list` | Normalized asset cards from validated README front matter plus measured inspection facts. |
+| `charctx assets show <id>` | Full normalized curated and measured facts for one collected asset. |
+| `charctx assets build <id>` | Explicitly write measured inspection output, standard preview renders, browser GLB, and the generated README body for one package. |
+| `charctx assets validate [<id>]` | Validate package schemas, confined paths, hashes, and required derived outputs without rewriting them. |
+| `charctx web` | Start the private loopback-only Astro catalog/viewer; it calls this CLI for all asset facts. |
 
 Commands that cost money or quota make that visible before spending it, and
 report what was spent afterwards.
@@ -69,4 +75,5 @@ message, its numbers, and its reset time reach the operator unedited.
 
 - Agent skills or MCP servers.
 - Interactive prompts: every command is non-interactive and scriptable.
-- A second CLI, a GUI, or a web application.
+- A second CLI, an independently started API/application server, or a public
+  deployment/publishing surface.

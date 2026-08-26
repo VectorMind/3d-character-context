@@ -21,6 +21,8 @@ and running notes in `plans/` instead.
 | [generator-backend](generator-backend/spec.md) | The backend boundary and its contracts, hosted-access facts and quota behavior, documented backend alternatives, staged geometry libraries |
 | [mesh-report](mesh-report/spec.md) | What a measured mesh fact is, the sidecar contract, and the verification level each pipeline stage owes |
 | [external-tools](external-tools/spec.md) | Declaring, pinning, checksum-verifying, and provisioning external binaries |
+| [asset-packages](asset-packages/spec.md) | Collected-asset package layout, README front matter, measured inspection facts, immutable sources, previews, and incomplete provenance |
+| [web-app](web-app/spec.md) | The private local Astro viewer, CLI boundary, confined derived-asset serving, and V1 catalog/detail scope |
 
 ## Not Yet Specified
 

@@ -1,8 +1,8 @@
 # Test — Western-Dragon Donor Corpus Acquisition
 
-This is a planning-only packet. Per `WORKFLOW.md`, this file currently records
-document review and consistency checks rather than marketplace or runtime
-proof.
+The packet remains in planning, but now includes read-only evidence about three
+candidate files manually collected by the maintainer. No candidate has yet
+been promoted into the proposed package lifecycle.
 
 ## Planning Consistency Checks (2026-08-25)
 
@@ -35,11 +35,31 @@ proof.
 - Added the packet to `plans/open.md`; no `implementation.md` was created
   because implementation has not begun.
 
-## Execution Evidence
+## Read-Only Candidate Inventory (2026-08-26)
 
-None. No marketplace was browsed, no API was probed, no Chrome session was
-controlled, no asset was downloaded or purchased, and no cloud-workspace data
-or folder structure was changed in this planning pass.
+Commands/checks:
+
+- recursively enumerated files under the selected project's
+  `assets/collected/` folder and grouped them by extension;
+- listed both levels of `european-dragon.zip` using ZIP readers without
+  extracting or changing it;
+- computed SHA-256 for the three candidate files;
+- opened the two BLEND files with provisioned Blender 5.2.1 using
+  `--background --disable-autoexec` and an operational inspection script under
+  `.cache/scratch/`; neither source file was saved or changed.
+
+Actual results:
+
+| Candidate | Bytes | SHA-256 | Read-only findings |
+| --- | ---: | --- | --- |
+| `blender_dragon.blend` | 2,638,248 | `13a4a92ed36c3922fa6cca8c2ed467209d53681d9d8b31752e5a17428cfe7ed3` | 1 mesh, 11,002 vertices, 10,998 polygons, 1 armature/38 deform bones, no actions or materials; one unpacked external texture reference |
+| `dragon.blend` | 20,629,992 | `6cb566aa82d9d7eb833aa7841019a49006aeae9a84ae385643268e959c7c92b3` | 67 meshes, 25,025 vertices, 26,244 polygons, 1 armature/196 deform bones, 10 actions including one 104-frame fly action, 7 materials; unpacked external texture references |
+| `european-dragon.zip` | 78,475,988 | `8f464c74ea5a100ec8fdbd9d2456842f9880f80780af5182778be53bdab5d0d4` | Outer archive contains a nested `Dragon_GameReady_Rig_&_Animations.zip` plus 4K textures; inner archive contains one 7,076,476-byte FBX and 14 PNG textures in 2K/4K variants; FBX not yet imported |
+
+Expected: inventory and structural facts are obtained without changing the
+cloud workspace. Actual: pass. The collection still contains the same three
+candidate files and its README at the top level; no folders were created and
+no files moved, extracted, rendered, or rewritten.
 
 ## Known Gaps
 
@@ -47,4 +67,9 @@ or folder structure was changed in this planning pass.
   unverified until Phase 1.
 - All proposed folder/schema details except the inherited three-root data
   boundary await maintainer review.
-- No runtime or asset fixture exists yet.
+- Source URL, creator, license, and true acquisition date are unknown for all
+  three candidates; they must remain `hold` unless supplied or deliberately
+  resolved.
+- The European-dragon FBX has not yet been imported or measured.
+- No reusable asset-package, inspection, render, README-generation, or web
+  viewer command exists yet; that work is planned separately.

@@ -310,6 +310,33 @@ original) with `trellis-example-dragon.provenance.md` beside it recording
 source URL, origin, acquisition date, and rights. Nothing else in the data
 workspace was modified; `generated/` remains empty.
 
+## Runtime Proof — Blender Subprocess Boundary (2026-08-26)
+
+Free to run, and it closes a gap the previous pass left open: Blender was
+provisioned but no code had ever driven it.
+
+```python
+tool, version = artifacts.verify("blender")          # Blender 5.2.1 LTS
+subprocess.run([str(tool.executable), "--background", "--factory-startup",
+                "--python-expr", "<probe>"], capture_output=True, timeout=180)
+```
+
+| Check | Expected | Actual |
+| --- | --- | --- |
+| `artifacts.verify("blender")` | reports a version | `Blender 5.2.1 LTS` |
+| headless run exit code | 0 | **0** |
+| `bpy` importable inside the subprocess | yes | `BPY_VERSION=5.2.1 LTS` |
+| factory-startup scene loads | default scene | `SCENE_OBJECTS=3` |
+| Blender's bundled interpreter | independent of the workspace pin | **Python 3.13.13** (workspace runs 3.12.13) |
+
+The last row is the point of the whole mechanism: Blender scripts run in
+Blender's own 3.13 runtime while `charctx` stays on the 3.12 pin, so tool
+version and workspace Python version never constrain each other. That is what
+choosing the provisioned binary over the `bpy` wheel bought (OP-013).
+
+Still unproven: any actual geometry or rigging work through that boundary.
+This is a handshake, not a pipeline stage.
+
 ## Known Gaps
 
 - **One exit criterion is unmet: no live `charctx generate` has produced a
@@ -323,8 +350,9 @@ workspace was modified; `generated/` remains empty.
 - No quality judgement on any generated mesh - only measurement. Choosing
   between TRELLIS.2 and the faster, lower-density community Space on output
   quality needs a real dragon reference and more quota.
-- Blender is provisioned and verified, but no pipeline stage invokes it, so
-  the subprocess boundary is specified and untested.
+- Blender's subprocess boundary is proven only as a handshake (headless run,
+  `bpy` import, bundled 3.13 interpreter); no pipeline stage does geometry or
+  rigging work through it yet.
 - `charctx fetch` handles zip archives only, and the Blender pin is
   Windows-only; another platform is refused with a clear message rather than
   silently given a wrong binary.
