@@ -29,6 +29,12 @@ def test_paths_lists_every_write_location(capsys) -> None:
     assert payload["repository"].endswith("3d-character-context")
 
 
+def test_json_global_flag_is_position_independent(capsys) -> None:
+    code, payload = run_json(capsys, "--json", "paths")
+    assert code == 0
+    assert payload["repository"].endswith("3d-character-context")
+
+
 def test_info_reports_backends_without_revealing_secrets(
     capsys, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -140,3 +146,38 @@ def test_option_flag_rejects_malformed_input() -> None:
 
     with pytest.raises(ConfigError, match="key=value"):
         _parse_options(["steps"])
+
+
+def test_assets_inspect_and_organize_are_separate_commands(
+    capsys, project_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    collected = project_root / "assets" / "collected"
+    collected.mkdir()
+    loose = collected / "dragon.blend"
+    loose.write_bytes(b"dragon")
+    monkeypatch.setenv(PROJECT_ENV_VAR, str(project_root))
+
+    code, payload = run_json(capsys, "assets", "inspect", "--json")
+    assert code == 0
+    assert payload["loose"][0]["asset_id"] == "dragon"
+    assert loose.is_file(), "inspect must never move the source"
+
+    code, payload = run_json(capsys, "assets", "organize", "--json")
+    assert code == 0
+    assert payload["count"] == 1
+    assert not loose.exists()
+    assert (collected / "dragon" / "source" / "dragon.blend").is_file()
+
+    code, payload = run_json(capsys, "assets", "list", "--json")
+    assert code == 0
+    assert payload["assets"][0]["id"] == "dragon"
+
+
+def test_assets_show_unknown_id_fails_clearly(
+    capsys, project_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (project_root / "assets" / "collected").mkdir()
+    monkeypatch.setenv(PROJECT_ENV_VAR, str(project_root))
+    code = main(["assets", "show", "missing"])
+    assert code == 2
+    assert "Unknown collected asset" in capsys.readouterr().err

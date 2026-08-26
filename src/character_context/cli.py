@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import webbrowser
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +25,7 @@ from .config import (
     mask,
     providers_config,
 )
-from .paths import CACHE_LAYOUT, REPO_ROOT, TOOLS_DIR, ensure_cache_layout
+from .paths import CACHE_LAYOUT, REPO_ROOT, REPORTS_DIR, TOOLS_DIR, ensure_cache_layout
 
 
 def _emit(payload: dict[str, Any], lines: list[str], as_json: bool) -> None:
@@ -406,6 +407,156 @@ def cmd_backends(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_assets_inspect(args: argparse.Namespace) -> int:
+    """Read-only inventory of loose candidates and existing packages."""
+    from . import assets as assets_mod
+    from . import project as project_mod
+
+    selected = project_mod.select(args.project)
+    payload = assets_mod.inspect_collection(selected)
+    lines = [f"collected assets: {payload['root']}", "", "loose candidates:"]
+    for item in payload["loose"]:
+        state = "COLLISION" if item["collision"] else "ready"
+        lines.append(
+            f"  {Path(item['source']).name} -> {item['asset_id']}/ "
+            f"({item['bytes']:,} bytes, {state})"
+        )
+    if not payload["loose"]:
+        lines.append("  none")
+    lines += ["", "packages:"]
+    for item in payload["packages"]:
+        state = "built" if item["built"] else "not built"
+        lines.append(
+            f"  {item['id']}: {item['title']} ({item['provenance_status']}, {state})"
+        )
+    if not payload["packages"]:
+        lines.append("  none")
+    _emit(payload, lines, args.json)
+    return 0
+
+
+def cmd_assets_list(args: argparse.Namespace) -> int:
+    """List normalized cards for collected asset packages."""
+    from . import assets as assets_mod
+    from . import project as project_mod
+
+    selected = project_mod.select(args.project)
+    cards = assets_mod.list_assets(selected)
+    payload = {"assets": [card.model_dump(mode="json") for card in cards]}
+    lines = [f"collected assets: {len(cards)}"]
+    for card in cards:
+        badges = ["rigged" if card.rigged else "unrigged"]
+        if card.animated:
+            badges.append("animated")
+        badges.append(card.provenance_status)
+        lines.append(f"  {card.id}: {card.title} ({', '.join(badges)})")
+    _emit(payload, lines, args.json)
+    return 0
+
+
+def cmd_assets_show(args: argparse.Namespace) -> int:
+    """Show normalized curated and measured facts for one package."""
+    from . import assets as assets_mod
+    from . import project as project_mod
+
+    selected = project_mod.select(args.project)
+    payload = assets_mod.show_asset(selected, args.asset_id)
+    card = payload["card"]
+    lines = [
+        f"{card['id']}: {card['title']}",
+        f"  package    : {card['package_dir']}",
+        f"  provenance : {card['provenance_status']}",
+        f"  geometry   : {card['vertices']:,} vertices, {card['polygons']:,} polygons",
+        f"  rig        : {card['bones']} bones, {card['actions']} action(s)",
+        f"  web model  : {card['web_model'] or 'not built'}",
+    ]
+    for warning in card["warnings"]:
+        lines.append(f"  warning    : {warning}")
+    _emit(payload, lines, args.json)
+    return 0
+
+
+def cmd_assets_organize(args: argparse.Namespace) -> int:
+    """Organize all eligible loose assets; this command is the mutation."""
+    from . import assets as assets_mod
+    from . import project as project_mod
+
+    selected = project_mod.select(args.project)
+    organized = assets_mod.organize(selected)
+    payload = {"organized": organized, "count": len(organized)}
+    lines = [f"organized {len(organized)} asset(s)"]
+    lines += [f"  {item['id']}: {item['source']}" for item in organized]
+    if not organized:
+        lines.append("  no loose candidates; nothing changed")
+    _emit(payload, lines, args.json)
+    return 0
+
+
+def cmd_assets_build(args: argparse.Namespace) -> int:
+    """Inspect/render packages and write their deterministic derived assets."""
+    from . import assets as assets_mod
+    from . import project as project_mod
+
+    selected = project_mod.select(args.project)
+    built = assets_mod.build(selected, args.asset_id)
+    payload = {"built": built, "count": len(built)}
+    lines = [f"built {len(built)} asset(s)"]
+    for item in built:
+        lines.append(f"  {item['id']}: {item['web_model']}")
+        for warning in item["warnings"]:
+            lines.append(f"    warning: {warning}")
+    _emit(payload, lines, args.json)
+    return 0
+
+
+def cmd_assets_validate(args: argparse.Namespace) -> int:
+    """Validate package schemas, source hashes, paths, and derived outputs."""
+    from . import assets as assets_mod
+    from . import project as project_mod
+
+    selected = project_mod.select(args.project)
+    results = assets_mod.validate(selected, args.asset_id)
+    valid = all(item["valid"] for item in results)
+    payload = {"valid": valid, "assets": results}
+    lines = [f"asset validation: {'pass' if valid else 'fail'}"]
+    for item in results:
+        lines.append(f"  {item['id']}: {'valid' if item['valid'] else 'invalid'}")
+        lines += [f"    {error}" for error in item["errors"]]
+    _emit(payload, lines, args.json)
+    return 0 if valid else 1
+
+
+def cmd_web(args: argparse.Namespace) -> int:
+    """Start the private local Astro asset catalog."""
+    from . import project as project_mod
+    from . import web as web_mod
+
+    selected = project_mod.select(args.project)
+    directory = web_mod.webapp_dir()
+    log = REPORTS_DIR / "web.log"
+    if not web_mod.dependencies_installed(directory):
+        if args.no_install:
+            raise ConfigError("web dependencies are missing; omit --no-install")
+        web_mod.install(directory, log)
+    server = web_mod.start(
+        directory, project=selected.root, host=args.host, port=args.port
+    )
+    payload = {"url": server.url, "project": str(selected.root), "log": str(server.log)}
+    _emit(
+        payload,
+        [
+            f"dragon catalog: {server.url}",
+            f"  project: {selected.root}",
+            f"  log: {server.log}",
+            "  Ctrl-C to stop",
+        ],
+        args.json,
+    )
+    if args.open:
+        webbrowser.open(server.url)
+    return server.wait()
+
+
 # --------------------------------------------------------------------------
 # parser
 
@@ -480,6 +631,63 @@ def build_parser() -> argparse.ArgumentParser:
     )
     project_info.set_defaults(func=cmd_project_info)
 
+    assets_cmd = subparsers.add_parser(
+        "assets", help="collected asset packages and previews", parents=[shared]
+    )
+    assets_sub = assets_cmd.add_subparsers(dest="assets_command", required=True)
+    assets_inspect = assets_sub.add_parser(
+        "inspect",
+        help="read-only loose/package inventory and proposed moves",
+        parents=[shared],
+    )
+    assets_inspect.set_defaults(func=cmd_assets_inspect)
+    assets_list = assets_sub.add_parser(
+        "list", help="list normalized asset cards", parents=[shared]
+    )
+    assets_list.set_defaults(func=cmd_assets_list)
+    assets_show = assets_sub.add_parser(
+        "show", help="show one asset package", parents=[shared]
+    )
+    assets_show.add_argument("asset_id", help="collected asset id")
+    assets_show.set_defaults(func=cmd_assets_show)
+    assets_organize = assets_sub.add_parser(
+        "organize",
+        help="organize every eligible loose candidate (writes/moves)",
+        parents=[shared],
+    )
+    assets_organize.set_defaults(func=cmd_assets_organize)
+    assets_build = assets_sub.add_parser(
+        "build",
+        help="inspect/render one asset or all assets",
+        parents=[shared],
+    )
+    assets_build.add_argument(
+        "asset_id", nargs="?", help="asset id (default: build every package)"
+    )
+    assets_build.set_defaults(func=cmd_assets_build)
+    assets_validate = assets_sub.add_parser(
+        "validate",
+        help="validate one asset or the whole collection",
+        parents=[shared],
+    )
+    assets_validate.add_argument(
+        "asset_id", nargs="?", help="asset id (default: validate every package)"
+    )
+    assets_validate.set_defaults(func=cmd_assets_validate)
+
+    web = subparsers.add_parser(
+        "web", help="start the private local dragon catalog", parents=[shared]
+    )
+    web.add_argument("--host", default="127.0.0.1", help="listen host")
+    web.add_argument("--port", type=int, default=4321, help="listen port")
+    web.add_argument(
+        "--no-install", action="store_true", help="fail if web dependencies are missing"
+    )
+    web.add_argument(
+        "--open", action="store_true", help="open the catalog in the default browser"
+    )
+    web.set_defaults(func=cmd_web)
+
     fetch = subparsers.add_parser(
         "fetch", help="provision a declared external tool", parents=[shared]
     )
@@ -535,7 +743,17 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
-    args = parser.parse_args(argv)
+    raw = list(argv) if argv is not None else sys.argv[1:]
+    args = parser.parse_args(raw)
+    # Nested argparse parents can replace a root-level value with a child
+    # default. Reapply the two deliberately position-independent global flags.
+    if "--json" in raw:
+        args.json = True
+    for index, token in enumerate(raw):
+        if token == "--project" and index + 1 < len(raw):
+            args.project = raw[index + 1]
+        elif token.startswith("--project="):
+            args.project = token.partition("=")[2]
     try:
         return args.func(args)
     except ConfigError as exc:

@@ -9,5 +9,10 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 
+# Web dependencies and build output
+webapp/node_modules/
+webapp/dist/
+webapp/.astro/
+
 # Secrets
 .env

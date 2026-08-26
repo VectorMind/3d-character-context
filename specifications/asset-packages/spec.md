@@ -89,6 +89,18 @@ Everything under `source/` is immutable after package creation. Processing:
 The browser GLB and images are preview derivatives, not canonical production
 assets and not replacements for the vendor originals.
 
+## Organization Contract
+
+`charctx assets inspect` is the read-only preview. `charctx assets organize`
+is the explicit mutation and takes no required arguments: it handles every
+supported loose candidate directly under `assets/collected/`.
+
+Before any move, organization validates the full batch, derived ids, resolved
+paths, and collisions. Each package is created through staging; the original
+is moved under `source/` with the same filename, then its SHA-256 is verified.
+There is no overwrite or force mode. A collection with no loose candidates is
+a successful no-op.
+
 ## Provenance And Private Local Use
 
 This workspace has no publishing or public-sharing path. Assets with missing

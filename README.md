@@ -17,10 +17,11 @@ The guiding rule:
 
 ## Status
 
-The hosted-generation slice is implemented: contracts, the external project
-folder, the TRELLIS.2 backend, mesh measurement, external-tool provisioning,
-and the `charctx` CLI. The canonical layer - template topology, landmarks,
-skeleton fitting, appearance transfer - is not built yet.
+The hosted-generation and collected-asset catalog slices are implemented:
+contracts, the external project folder, TRELLIS.2, mesh measurement, Blender
+asset inspection/previews, the private Astro viewer, external-tool
+provisioning, and the `charctx` CLI. The canonical layer - template topology,
+landmarks, skeleton fitting, appearance transfer - is not built yet.
 
 The active packet is
 [`plans/2026-08/25-initial-bringup/plan.md`](plans/2026-08/25-initial-bringup/plan.md),
@@ -137,6 +138,69 @@ files each data root holds.
 
 ```powershell
 uv run charctx project info
+```
+
+### `charctx assets inspect`
+
+Read-only inventory of loose candidates and existing packages, including the
+exact package id and move that `organize` would perform. It never writes.
+
+```powershell
+uv run charctx assets inspect
+```
+
+### `charctx assets organize`
+
+Explicitly move every supported loose file in `assets/collected/` into its own
+package. The command preflights the entire batch, stages each package, verifies
+the source SHA-256 after the move, and refuses collisions or overwrites. It
+takes no arguments and is a successful no-op when nothing is loose.
+
+```powershell
+uv run charctx assets organize
+```
+
+### `charctx assets list` and `show <id>`
+
+Read normalized catalog cards or the complete curated/measured record for one
+asset. Both are read-only and are the data boundary used by the web app.
+
+```powershell
+uv run charctx assets list
+uv run charctx assets show european-dragon --json
+```
+
+### `charctx assets build [id]`
+
+Use provisioned Blender to inspect and build one package, or all packages when
+the id is omitted. It writes `inspection/report.json`, a reproducibility
+recipe, five standard WebP previews, a browser GLB, and the generated README
+body while preserving the manual-notes block. Source files are not modified.
+
+```powershell
+uv run charctx assets build european-dragon
+uv run charctx assets build
+```
+
+### `charctx assets validate [id]`
+
+Validate front matter, confined paths, original hashes, reports, previews, and
+browser GLBs without rewriting them.
+
+```powershell
+uv run charctx assets validate
+```
+
+### `charctx web`
+
+Start the private Astro catalog at `127.0.0.1:4321`. Missing web dependencies
+are installed automatically; `--no-install` makes their absence an error.
+The server exposes only declared previews and derived GLBs, never vendor
+source files. There is deliberately no deploy or publishing command.
+
+```powershell
+uv run charctx web --open
+uv run charctx web --port 4330 --no-install
 ```
 
 ### `charctx fetch <tool>`

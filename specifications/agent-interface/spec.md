@@ -48,9 +48,10 @@ function named for the write it performs (`write_measurements`, `fetch`,
 | `charctx generate <image> --name <slug>` | Reference image through a hosted backend into a fresh append-only run slot; measures the result unless `--no-report`. |
 | `charctx report <mesh>` | Measure any local mesh artifact and write its sidecar unless `--no-write`. |
 | `charctx assets inspect` | Read-only inspection of loose collected candidates and existing asset packages, including proposed organization paths. |
+| `charctx assets organize` | Explicit no-argument mutation that preflights and organizes every eligible loose candidate without overwrite or force behavior. |
 | `charctx assets list` | Normalized asset cards from validated README front matter plus measured inspection facts. |
 | `charctx assets show <id>` | Full normalized curated and measured facts for one collected asset. |
-| `charctx assets build <id>` | Explicitly write measured inspection output, standard preview renders, browser GLB, and the generated README body for one package. |
+| `charctx assets build [<id>]` | Explicitly write measured inspection output, standard preview renders, browser GLB, and the generated README body for one package or all packages. |
 | `charctx assets validate [<id>]` | Validate package schemas, confined paths, hashes, and required derived outputs without rewriting them. |
 | `charctx web` | Start the private loopback-only Astro catalog/viewer; it calls this CLI for all asset facts. |
 

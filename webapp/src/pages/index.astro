@@ -1,0 +1,24 @@
+---
+import Layout from '../layout/Layout.astro';
+import { artifactUrl, listAssets } from '../server/charctx';
+const assets = await listAssets();
+---
+<Layout title="Catalog">
+  <section>
+    <p class="eyebrow">Collected asset library</p>
+    <h1>Know every dragon before you rig it.</h1>
+    <p class="lede">A private, measured view of source meshes, preview geometry, rig signals, and provenance gaps. The cloud project remains the system of record.</p>
+  </section>
+  <section>
+    <div class="catalog-head"><h2>Dragon collection</h2><span class="count">{assets.length} packages · {assets.filter(a=>a.rigged).length} rigged</span></div>
+    <div class="grid">
+      {assets.map((asset) => <a class="card" href={`/assets/${asset.id}`}>
+        {asset.cover ? <img class="card-image" src={artifactUrl(asset.id, asset.cover)} alt={`${asset.title} studio preview`} /> : <div class="card-image"></div>}
+        <div class="card-body">
+          <div class="card-top"><div><p class="eyebrow">{asset.family}</p><h2>{asset.title}</h2></div><span class:list={['badge', { bad: asset.provenance_status !== 'complete' }]}>{asset.provenance_status} provenance</span></div>
+          <div class="stats"><div class="stat"><strong>{asset.vertices.toLocaleString()}</strong><span>vertices</span></div><div class="stat"><strong>{asset.bones}</strong><span>bones</span></div><div class="stat"><strong>{asset.actions}</strong><span>actions</span></div></div>
+        </div>
+      </a>)}
+    </div>
+  </section>
+</Layout>

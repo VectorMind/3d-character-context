@@ -1,0 +1,22 @@
+---
+import ModelViewer from '../../components/ModelViewer';
+import Layout from '../../layout/Layout.astro';
+import { artifactUrl, showAsset } from '../../server/charctx';
+const id = Astro.params.id!;
+let data;
+try { data = await showAsset(id); } catch { return Astro.redirect('/'); }
+const { card, inspection, metadata } = data;
+const sourceMaterialAvailable = (inspection?.materials?.length ?? 0) > 0 && !card.warnings.some((warning: string) => warning.startsWith('Missing external image'));
+---
+<Layout title={card.title} description={`Inspection card for ${card.title}`}>
+  <div class="detail-top"><a class="back" href="/">← Collection</a><span class="eyebrow">/ {card.id}</span></div>
+  <div class="detail-title"><div><p class="eyebrow">{card.family} · {card.source_formats.join(', ')}</p><h1>{card.title}</h1></div><span class:list={['badge', { bad: card.provenance_status !== 'complete' }]}>{card.provenance_status} provenance</span></div>
+  {card.web_model ? <div class="viewer-shell"><ModelViewer client:load url={artifactUrl(card.id, card.web_model)} boundsMin={inspection.web_measurements.bounds_min} boundsMax={inspection.web_measurements.bounds_max} sourceMaterialAvailable={sourceMaterialAvailable} /></div> : <div class="panel">Run <code>charctx assets build {card.id}</code> to generate the viewer model.</div>}
+  <div class="two-col">
+    <section class="panel"><h2>Measured characteristics</h2><table class="facts"><tbody>
+      <tr><td>Vertices</td><td>{card.vertices.toLocaleString()}</td></tr><tr><td>Polygons</td><td>{card.polygons.toLocaleString()}</td></tr><tr><td>Mesh objects</td><td>{inspection?.meshes?.length ?? 0}</td></tr><tr><td>Rig</td><td>{card.rigged ? `${card.bones} bones` : 'None detected'}</td></tr><tr><td>Animation</td><td>{card.animated ? `${card.actions} actions` : 'None detected'}</td></tr><tr><td>Materials</td><td>{inspection?.materials?.length ?? 0}</td></tr><tr><td>Primary source</td><td>{card.primary_file}</td></tr>
+    </tbody></table></section>
+    <aside class="panel"><h2>Review notes</h2>{card.warnings.map((warning: string) => <p class="warning">{warning}</p>)}<table class="facts"><tbody><tr><td>Acquired</td><td>{metadata?.acquisition?.acquired_at ?? 'unknown'}</td></tr><tr><td>License</td><td>{metadata?.license?.status ?? 'unknown'}</td></tr></tbody></table></aside>
+  </div>
+  <section class="gallery">{card.previews.map((preview: string) => <img src={artifactUrl(card.id, preview)} alt={`${card.title} ${preview.split('/').at(-1)?.replace('.webp','')} view`} loading="lazy" />)}</section>
+</Layout>

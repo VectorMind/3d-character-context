@@ -1,10 +1,9 @@
 # Plan — Dragon Asset Catalog And Web Viewer
 
 Date: 2026-08-26  
-Status: Decision pass 1 complete — OP-001 and OP-003…OP-006 accepted;
-OP-002 awaits final confirmation of the no-argument `assets organize`
-contract; no asset migration, preview generation, or web implementation has
-started
+Status: Implemented and verified — OP-001…OP-006 accepted; three source
+assets organized, inspected, rendered, validated, and available through the
+private CLI-started Astro catalog
 
 ## Problem Summary
 
@@ -37,7 +36,7 @@ architecture are tracked. An open row is a proposal, not an accepted choice.
 | OP | Topic | Proposal | Confidence | Status |
 | --- | --- | --- | --- | --- |
 | OP-001 | Metadata and README authority | Each package's `README.md` YAML front matter is authoritative for curated card/provenance fields; `inspection/report.json` is authoritative for measured facts; the CLI generates the README body from both while preserving a manual-notes region | high | **accepted 2026-08-26** |
-| OP-002 | Safe package migration | `charctx assets inspect` is the no-write preview; `charctx assets organize` takes no required arguments and is itself the explicit mutation, organizing every eligible loose candidate under `assets/collected/` with full-batch preflight, staging, hash verification, and no overwrite/force mode | high | **open — final confirmation requested** |
+| OP-002 | Safe package migration | `charctx assets inspect` is the no-write preview; `charctx assets organize` takes no required arguments and is itself the explicit mutation, organizing every eligible loose candidate under `assets/collected/` with full-batch preflight, staging, hash verification, and no overwrite/force mode | high | **accepted 2026-08-26 and implemented** |
 | OP-003 | Missing provenance | Local viewing and processing remain allowed; use `provenance_status: incomplete`, explicit `unknown` fields, and a prominent catalog/page warning. This private workspace has no publishing path | high | **accepted 2026-08-26 with amendment** |
 | OP-004 | Durable preview contract | Use headless Blender to produce a versioned inspection report, one browser GLB, and five deterministic WebP views inside each asset package; source files remain immutable and transient work stays in `.cache/` | high | **accepted 2026-08-26** |
 | OP-005 | Reusable CLI surface | Add one `charctx assets` group for inspect/list/show/organize/build/validate and add `charctx web`; the Python domain API stays side-effect-free and all writes are explicit CLI actions | high | **accepted 2026-08-26** (organize semantics remain OP-002) |
@@ -92,7 +91,7 @@ Non-goals:
 
 ## Proposed Asset Package
 
-Pending the open points, each dragon becomes:
+The accepted package for each dragon is:
 
 ```text
 <project>/assets/collected/<asset-id>/
@@ -194,7 +193,7 @@ How should the existing flat files be reorganized?
 - **Fold organization into `assets build`:** fewer commands, but mixes source
   movement with Blender inspection/rendering and makes failures ambiguous.
 
-Proposal: use this pair:
+Resolution: use this pair:
 
 ```text
 charctx assets inspect              # no write; shows every proposed package/move
@@ -209,9 +208,10 @@ or invalid candidate, creates each package through staging, moves the original
 under `source/` without changing its name or bytes, verifies SHA-256 after the
 move, writes the initial README, and has no overwrite or force mode. Re-running
 with no loose candidates is a successful no-op. Confidence: high. Status:
-**open — final maintainer confirmation requested**.
+**accepted 2026-08-26 and implemented**. The maintainer explicitly authorized
+moving the assets and continuing through viewer implementation.
 
-Filename-derived package ids used by the proposed batch command:
+Filename-derived package ids used by the accepted batch command:
 
 - `dragon` for `dragon.blend`;
 - `blender-dragon` for `blender_dragon.blend`;
@@ -463,7 +463,5 @@ Drive workspace. Confidence: high. Status: **accepted 2026-08-26**.
 
 ## Implementation Gate
 
-Implementation should begin after the maintainer accepts or amends OP-002's
-exact no-argument `charctx assets organize` behavior. OP-001 and OP-003…OP-006
-are accepted. Until OP-002 is settled, the three source files remain untouched
-in the cloud workspace.
+Cleared 2026-08-26. OP-002 was accepted as proposed and implementation was
+authorized, including migration of the three external source files.

@@ -1,0 +1,22 @@
+---
+import './app.css';
+interface Props { title: string; description?: string; }
+const { title, description = 'Private local catalog for collected dragon assets.' } = Astro.props;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="description" content={description} />
+    <title>{title} · Dragon Atlas</title>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/"><span class="brand-mark">D</span><span>Dragon Atlas</span></a>
+      <span class="privacy"><i></i> Private local workspace</span>
+    </header>
+    <main><slot /></main>
+    <footer>CHARCTX · measured assets, local provenance, no publishing surface</footer>
+  </body>
+</html>
