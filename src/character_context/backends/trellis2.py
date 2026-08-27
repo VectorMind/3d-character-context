@@ -138,15 +138,6 @@ def _adopt(source: Path, slot: Path, name: str) -> Path:
     return target
 
 
-def _discard_if_empty(slot: Path) -> None:
-    """Remove a run slot that never received an artifact."""
-    try:
-        if slot.is_dir() and not any(slot.iterdir()):
-            slot.rmdir()
-    except OSError:  # never let cleanup mask the real failure
-        pass
-
-
 def describe() -> dict[str, Any]:
     """Static description of this backend. Makes no network call."""
     name, config = backend_config("trellis2")
@@ -168,8 +159,9 @@ def generate(
 ) -> RawCharacterResult:
     """Run one generation and land its artifacts in a fresh run slot.
 
-    The slot is created before the call and never reused, so a result can
-    always be traced back to the request that paid for it.
+    The slot is allocated only once the provider has actually returned a mesh,
+    and is never reused, so every slot on disk corresponds to a result that
+    was really produced.
     """
     backend, config = backend_config(request.backend)
     space = config["space"]
@@ -197,47 +189,44 @@ def generate(
 
     from gradio_client import handle_file
 
-    slot = project.run_slot(backend, request.name)
+    # No run slot is created before the provider returns something. Creating
+    # it up front left an empty folder behind on every failed call: a
+    # cloud-sync client takes a handle on the new directory immediately, and
+    # the cleanup `rmdir` then fails with `PermissionError` for minutes.
     started = datetime.now()
     start_perf = time.perf_counter()
 
-    try:
-        # Session first: /extract_glb reads what /image_to_3d left behind.
-        if endpoints.get("session"):
-            _call(client, endpoints["session"])
+    # Session first: /extract_glb reads what /image_to_3d left behind.
+    if endpoints.get("session"):
+        _call(client, endpoints["session"])
 
-        image = handle_file(str(request.images[0]))
-        if endpoints.get("preprocess"):
-            event("preprocessing reference image")
-            preprocessed = _call(
-                client,
-                endpoints["preprocess"],
-                **_full_kwargs(surface[endpoints["preprocess"]], {"input": image}),
-            )
-            image = handle_file(
-                preprocessed["path"] if isinstance(preprocessed, dict) else preprocessed
-            )
+    image = handle_file(str(request.images[0]))
+    if endpoints.get("preprocess"):
+        event("preprocessing reference image")
+        preprocessed = _call(
+            client,
+            endpoints["preprocess"],
+            **_full_kwargs(surface[endpoints["preprocess"]], {"input": image}),
+        )
+        image = handle_file(
+            preprocessed["path"] if isinstance(preprocessed, dict) else preprocessed
+        )
 
-        # Options precedence: config defaults, then per-request overrides.
-        overrides: dict[str, Any] = {
-            "image": image,
-            "seed": request.seed,
-            **configured_options,
-            **request.options,
-        }
+    # Options precedence: config defaults, then per-request overrides.
+    overrides: dict[str, Any] = {
+        "image": image,
+        "seed": request.seed,
+        **configured_options,
+        **request.options,
+    }
 
-        event("generating 3D asset (reserves GPU quota)")
-        generate_kwargs = _full_kwargs(surface[endpoints["generate"]], overrides)
-        _call(client, endpoints["generate"], **generate_kwargs)
+    event("generating 3D asset (reserves GPU quota)")
+    generate_kwargs = _full_kwargs(surface[endpoints["generate"]], overrides)
+    _call(client, endpoints["generate"], **generate_kwargs)
 
-        event("extracting GLB")
-        extract_kwargs = _full_kwargs(surface[endpoints["extract"]], overrides)
-        extracted = _call(client, endpoints["extract"], **extract_kwargs)
-    except Exception:
-        # Append-only protects results, not empty folders: a run that brought
-        # nothing back leaves no slot behind to be mistaken for one that did.
-        _discard_if_empty(slot)
-        raise
+    event("extracting GLB")
+    extract_kwargs = _full_kwargs(surface[endpoints["extract"]], overrides)
+    extracted = _call(client, endpoints["extract"], **extract_kwargs)
 
     completed = datetime.now()
     duration = round(time.perf_counter() - start_perf, 2)
@@ -248,6 +237,7 @@ def generate(
             f"{endpoints['extract']} returned no GLB file. Payload: {extracted!r}"
         )
 
+    slot = project.run_slot(backend, request.name)
     mesh = _adopt(glb, slot, f"{request.name}.glb")
 
     # Keep the run self-contained: the reference image travels with the result.

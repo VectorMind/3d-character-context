@@ -184,6 +184,51 @@ def test_quota_exhaustion_is_a_named_error(
         trellis2.generate(request, Project(project_root))
 
 
+def test_a_failed_call_creates_no_run_slot(
+    monkeypatch: pytest.MonkeyPatch,
+    trellis2_api: dict,
+    provider_glb: Path,
+    reference_image: Path,
+    project_root: Path,
+) -> None:
+    """A slot exists only for a result that was really produced.
+
+    Cleaning up afterwards is not reliable: on a cloud-synced project folder
+    the sync client holds a handle on the new directory and `rmdir` fails for
+    minutes, so the slot must never be created in the first place.
+    """
+    space = FakeSpace(
+        trellis2_api, provider_glb, fail_with=RuntimeError("ZeroGPU quota")
+    )
+    monkeypatch.setattr(trellis2, "_client", lambda *a, **k: space)
+    monkeypatch.setattr(trellis2, "credential", lambda name, **k: "hf_test_token")
+
+    project = Project(project_root)
+    request = GenerationRequest(
+        images=[reference_image], name="red-dragon", backend="trellis2"
+    )
+    with pytest.raises(trellis2.QuotaExhausted):
+        trellis2.generate(request, project)
+
+    backend_dir = project.generated / "trellis2"
+    assert not backend_dir.exists() or not list(backend_dir.iterdir())
+
+
+def test_slot_numbering_ignores_failed_attempts(wired) -> None:
+    """A failed run must not consume a slot number either."""
+    space, request, project = wired
+    first = trellis2.generate(request, project)
+    assert first.run_dir.name == "red-dragon-001"
+
+    space._fail_with = RuntimeError("ZeroGPU quota")
+    with pytest.raises(trellis2.QuotaExhausted):
+        trellis2.generate(request, project)
+
+    space._fail_with = None
+    second = trellis2.generate(request, project)
+    assert second.run_dir.name == "red-dragon-002"
+
+
 def test_a_changed_space_api_is_reported_clearly(
     monkeypatch: pytest.MonkeyPatch,
     trellis2_api: dict,

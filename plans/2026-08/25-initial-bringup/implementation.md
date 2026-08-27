@@ -2,11 +2,12 @@
 
 ## Progress
 
-`▰▰▰▰▰▰▱ Phases 1-6 built, live generate unproven` — every phase is
-implemented (environment, contracts, project folder, TRELLIS.2 backend, mesh
-report, CLI, specs, 65 offline tests); the one open proof is a live
-`charctx generate` producing a mesh, blocked until the ZeroGPU daily quota
-resets.
+`▰▰▰▰▰▰ Done` — all six phases implemented and proven, including two
+live `charctx generate` runs landing measured meshes in append-only project
+slots; this packet's 67 offline tests pass inside a green 78-test suite, ruff
+clean.
+Non-blocking follow-ups: the `live` pytest test still needs a day with spare
+quota, and one empty pre-fix run slot awaits manual deletion.
 
 ## 2026-08-25 — Phase 1, Hugging Face free access
 
@@ -340,3 +341,101 @@ mesh-report, external-tools.
 - `charctx fetch` supports zip archives only, and `config/artifacts.yaml`
   carries a Windows-only pin. A non-Windows platform is refused with a clear
   message rather than a wrong binary.
+
+## 2026-08-26 — Live validation, and one real bug it exposed
+
+Maintainer direction: spend the day's ZeroGPU budget on validation, and keep
+generated results in the real project folder rather than temp directories.
+
+### Live Proof — The Last Exit Criterion
+
+`charctx generate` produced measured meshes through `microsoft/TRELLIS.2`
+twice, into `<project>/generated/trellis2/red-dragon-001` and `-002`:
+
+| | Run 1 (seed 42) | Run 2 (seed 43) |
+| --- | --- | --- |
+| duration | 58.98 s | 63.16 s |
+| vertices / faces | 192,711 / 293,985 | 181,018 / 277,705 |
+| components | 3,284 | 3,000 |
+| file size | 9.99 MB | 9.47 MB |
+
+Both slots are self-contained (`*.glb`, `*.measurements.json`,
+`reference.png`, `request.json`) with no temp leftovers. Full numbers in
+`test.md`.
+
+The 6% spread between two seeds on one reference image is the concrete
+justification for OP-006: a generation cannot be reproduced by re-running it,
+so no result is ever discarded.
+
+### New: `experiments/hf_03_live_validation.py`
+
+A quota-aware runner for exactly this kind of session. It drives the real
+`charctx` CLI as a subprocess (so it validates the shipped interface, not an
+internal function), waits out a refusal using the provider's own
+`Try again in H:MM:SS` rather than guessing, and verifies each resulting slot
+against nine checks before reporting.
+
+It runs in the project environment rather than as a standalone PEP 723
+script: `uv run --script` failed here with `Failed to spawn: python - An
+Application Control policy has blocked this file`, because a script with no
+dependencies makes uv spawn a bare interpreter that Windows blocks. Since the
+runner drives the installed CLI anyway, the project environment is the honest
+home for it.
+
+Two bugs surfaced on the free path before any quota was spent: that spawn
+failure, and a `Report.probe()` keyword collision that would have crashed
+*after* a successful generation and wasted it.
+
+### Bug Fixed: Empty Run Slots On A Cloud-Synced Folder
+
+The third (quota-refused) run left an empty `red-dragon-003/` behind, which
+the previous pass's cleanup was meant to prevent.
+
+Cause: Google Drive takes a handle on a newly created directory immediately,
+so the cleanup `rmdir` fails with `PermissionError: [WinError 5]` — still
+failing on four retries minutes later. Retrying, which fixed the analogous
+Blender extraction rename, does not work here.
+
+Fix: **allocate the run slot only after the provider returns a mesh.**
+`generate()` now calls `project.run_slot()` after `_first_glb()` succeeds, so
+a failed call cannot create a folder at all. The `_discard_if_empty` helper
+was deleted as dead code. This is the better shape regardless of cloud sync —
+not creating a thing beats cleaning it up — and it makes the workspace-layout
+spec's "a run that brings back no artifact leaves no slot behind" true by
+construction rather than by best effort.
+
+Regression tests: `test_a_failed_call_creates_no_run_slot` and
+`test_slot_numbering_ignores_failed_attempts` (a failed run between two
+successes does not consume a slot number).
+
+Suite after the fix: **78 passed, 1 skipped** repo-wide, ruff clean. That
+count includes the parallel asset-catalog packet's tests; this packet
+contributes 67 of them (13 backend, 16 CLI, 10 config, 8 contracts, 8 mesh
+report, 8 project, 7 artifacts, plus the gated live test).
+
+### Also Proven: The Blender Subprocess Boundary
+
+Free to check, and it closed a gap the previous pass left open. Headless
+Blender runs from the resolved `.tools/` path, exits 0, imports `bpy`
+(5.2.1 LTS), and loads the factory-startup scene — on **Python 3.13.13**,
+while `charctx` stays on the 3.12 pin. That independence is exactly what
+choosing the provisioned binary over the `bpy` wheel bought (OP-013).
+
+### Quota Facts, Refined
+
+- Two generations plus the previous day's residual exhausted the day: the
+  third attempt was refused with a **~24 h** wait.
+- Practical free-tier rate: **2-4 generations per day**, not the 4 estimated
+  from arithmetic alone.
+- The rolling window is per-usage, not a midnight reset: yesterday's spend
+  aged out 24 h after it was incurred, and the provider states the exact
+  remaining wait.
+
+### Open After This Pass
+
+- The `live` pytest test remains unrun (no quota left); it exercises the same
+  path the two CLI runs just proved.
+- One empty `red-dragon-003/` directory predates the fix and is still on disk
+  because Drive holds it. Harmless, deletable by hand.
+- Everything else outstanding is milestone-2 work: the canonical layer, and
+  any real geometry through the Blender boundary.

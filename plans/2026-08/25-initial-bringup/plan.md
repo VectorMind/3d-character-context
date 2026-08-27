@@ -11,9 +11,9 @@ features. Implementation: Phases 1-6 are built against
 `microsoft/TRELLIS.2` as the selected backend (maintainer direction: TRELLIS
 path only, commercial providers out of scope for now). What landed is in
 [`implementation.md`](./implementation.md) and its proof in
-[`test.md`](./test.md); one exit criterion is outstanding - a live
-`charctx generate` producing a mesh, blocked until the free ZeroGPU daily
-quota resets.
+[`test.md`](./test.md). Every exit criterion is met: two live
+`charctx generate` runs landed measured meshes in append-only project slots
+on 2026-08-26. Packet closed.
 
 The founding architecture document for this repository is
 [`handoff.md`](./handoff.md) in this packet. This plan scopes the first

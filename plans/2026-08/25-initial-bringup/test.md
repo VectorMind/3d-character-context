@@ -337,19 +337,114 @@ choosing the provisioned binary over the `bpy` wheel bought (OP-013).
 Still unproven: any actual geometry or rigging work through that boundary.
 This is a handshake, not a pipeline stage.
 
+## Runtime Proof — Live Generation Through The CLI (2026-08-26)
+
+**This closes the packet's last exit criterion.** `charctx generate` took a
+reference image through `microsoft/TRELLIS.2` and landed measured meshes in
+the selected project folder, twice, in two distinct append-only slots.
+
+Driver: `uv run python experiments/hf_03_live_validation.py --runs 3`, which
+calls the real CLI as a subprocess and verifies each slot afterwards. Report:
+`.cache/results/2026-08-26/211312-live-validation/`.
+
+### Results
+
+| | Run 1 | Run 2 |
+| --- | --- | --- |
+| slot | `red-dragon-001` | `red-dragon-002` |
+| seed | 42 | 43 |
+| duration | **58.98 s** | **63.16 s** |
+| vertices | 192,711 | 181,018 |
+| faces | 293,985 | 277,705 |
+| extents | 0.7990 x 0.5953 x 0.9973 | 0.7459 x 0.5898 x 1.0014 |
+| surface area | 2.0045 | 1.8917 |
+| connected components | 3,284 | 3,000 |
+| degenerate faces | 1 | 1 |
+| watertight / finite / textured | False / True / True | False / True / True |
+| file size | 9,989,096 B | 9,466,968 B |
+
+Both slots hold exactly `red-dragon.glb`, `red-dragon.measurements.json`,
+`reference.png`, `request.json` — self-contained, no `.part` or `.tmp`
+leftovers.
+
+Every slot check passed on both runs: slot inside the project, slot outside
+the repository, mesh present and non-trivial, `request.json` present,
+measurements sidecar present, reference image copied, no temp files, measured
+geometry plausible.
+
+`request.json` records the full resolved call — all 14 `/image_to_3d`
+parameters actually sent, the extract options, both timestamps, and the
+duration — so a result can be traced back to the exact request that produced
+it.
+
+### What The Two Runs Show Together
+
+- **Append-only works on real data.** Identical command, different seed, two
+  separate slots; nothing was overwritten.
+- **The backend is genuinely non-deterministic.** Same reference image, seeds
+  42 and 43: 192,711 vs 181,018 vertices (6% apart), 3,284 vs 3,000
+  components, and visibly different extents. This is why paid results are
+  never discarded — a run cannot be reproduced by re-running it.
+- **Timing is stable**: ~59-63 s per generation, matching the 65 s measured
+  during the free-access experiment.
+
+### Quota Behavior, Measured Again
+
+The runner waited out one refusal using the provider's own reset time (52 m
+57 s), then generated twice back to back with no wait. The third attempt was
+refused with a **~24 h** wait, so the day's budget was spent by two
+generations plus the previous day's residual usage.
+
+Practical rate on the free tier: **2-4 generations per day**, and the runner
+turns a refusal into a scheduled wait rather than a failure.
+
+### Bug Found And Fixed: Empty Slots On A Cloud-Synced Folder
+
+The third, refused run **left an empty `red-dragon-003` directory behind**,
+which the previous pass's cleanup was supposed to prevent.
+
+Root cause: on the Google-Drive-synced project folder the sync client takes a
+handle on a newly created directory immediately, so the cleanup `rmdir` fails
+with `PermissionError: [WinError 5]` — and kept failing on four retries
+minutes later. It is the same class of failure as the Blender extraction
+rename, but retrying does not solve it here.
+
+Fix: **the run slot is no longer created before the provider returns a mesh.**
+`generate()` now allocates the slot only after `_first_glb()` finds an
+artifact, so a failed call cannot create a folder that needs deleting. The
+post-hoc cleanup helper was removed as dead code. Two regression tests cover
+it:
+
+- `test_a_failed_call_creates_no_run_slot` — a quota refusal leaves the
+  backend directory empty or absent;
+- `test_slot_numbering_ignores_failed_attempts` — a failed run between two
+  successful ones does not consume a slot number (`-001` then `-002`).
+
+The stray `red-dragon-003` directory from before the fix is still on disk and
+could not be removed while Drive holds it; it is empty and harmless, and can
+be deleted by hand once the handle is released.
+
+### Suite After The Fix
+
+`uv run pytest` → **78 passed, 1 skipped** repo-wide; `uv run ruff check .`
+clean. The suite also carries the parallel asset-catalog packet's tests; this
+packet's own additions are 67 of the 79 collected (13 backend, 16 CLI, 10
+config, 8 contracts, 8 mesh report, 8 project, 7 artifacts, 1 gated live).
+
 ## Known Gaps
 
-- **One exit criterion is unmet: no live `charctx generate` has produced a
-  mesh.** The path is proven up to the GPU reservation; the free ZeroGPU
-  budget was spent by the Phase 1 experiment on the same day. Repeat the
-  documented command after the quota resets.
-- The `live` smoke test has never run green, for the same reason.
+- The `live` smoke test (`tests/test_live_trellis2.py`) is still unrun: the
+  day's quota went to the two CLI generations, which prove the same path
+  through the same code. Run it on a day with budget to spare.
 - Commercial free tiers (Meshy, Tripo, Rodin) are unprobed by maintainer
   direction, and the Hunyuan3D Spaces were never called; both remain
   documented alternatives asserted from documents rather than exercised.
-- No quality judgement on any generated mesh - only measurement. Choosing
-  between TRELLIS.2 and the faster, lower-density community Space on output
-  quality needs a real dragon reference and more quota.
+- No quality judgement on any generated mesh - only measurement. The two live
+  results differ by 6% in vertex count, but whether either is a *good* dragon
+  is unassessed.
+- One empty `generated/trellis2/red-dragon-003/` directory predates the
+  slot-allocation fix and could not be removed while Google Drive held a
+  handle on it. Harmless, deletable by hand.
 - Blender's subprocess boundary is proven only as a handshake (headless run,
   `bpy` import, bundled 3.13 interpreter); no pipeline stage does geometry or
   rigging work through it yet.
@@ -360,4 +455,4 @@ This is a handshake, not a pipeline stage.
   `RiggedCharacterResult` are validated shapes with no behavior behind them.
 - Provider behavior is a moving target and this proof is a snapshot: Space
   runtime stages, quota rules, and router catalogues were true on 2026-08-25
-  and are re-provable by re-running `experiments/` and the suite.
+  and 2026-08-26, and are re-provable by re-running `experiments/`.
