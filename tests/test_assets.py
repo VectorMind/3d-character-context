@@ -92,6 +92,97 @@ def test_build_writes_measured_derivatives_and_preserves_manual_notes(
     def fake_blender(asset_id: str, model: Path, output: Path, log: Path) -> dict:
         mesh = trimesh.creation.icosphere(subdivisions=1)
         mesh.export(output / "model.glb")
+        identity = [
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+        bones = [
+            {
+                "name": f"bone.{index:03d}",
+                "parent": f"bone.{index - 1:03d}" if index else None,
+                "deform": True,
+                "connected": index > 0,
+                "depth": index,
+                "head": [0.0, float(index), 0.0],
+                "tail": [0.0, float(index + 1), 0.0],
+                "head_local": [0.0, float(index), 0.0],
+                "tail_local": [0.0, float(index + 1), 0.0],
+                "length": 1.0,
+                "roll": 0.0,
+                "matrix_local": identity,
+            }
+            for index in range(12)
+        ]
+        skeleton = {
+            "schema": "charctx.skeleton/v1",
+            "asset_id": asset_id,
+            "blender_version": "5.2.1-test",
+            "source_model": model.name,
+            "coordinate_system": {"pose": "armature rest pose"},
+            "armatures": [
+                {
+                    "name": "rig",
+                    "pose_position": "POSE",
+                    "object_matrix": identity,
+                    "bones": bones,
+                    "roots": ["bone.000"],
+                    "leaves": ["bone.011"],
+                    "max_depth": 11,
+                    "bounds_min": [0.0, 0.0, 0.0],
+                    "bounds_max": [0.0, 12.0, 0.0],
+                    "total_length": 12.0,
+                    "deform_total_length": 12.0,
+                    "name_signals": {},
+                }
+            ],
+            "summary": {
+                "armatures": 1,
+                "bones": 12,
+                "deform_bones": 12,
+                "roots": 1,
+                "leaves": 1,
+                "max_depth": 11,
+            },
+        }
+        weights = {
+            "schema": "charctx.skin-weights/v1",
+            "asset_id": asset_id,
+            "source_model": model.name,
+            "encoding": "csr-per-vertex",
+            "bindings": [
+                {
+                    "mesh": "dragon",
+                    "armature": "rig",
+                    "vertices": 42,
+                    "bone_names": [bone["name"] for bone in bones],
+                    "vertex_offsets": list(range(43)),
+                    "bone_indices": [0] * 42,
+                    "weights": [1.0] * 42,
+                    "weighted_vertices": 42,
+                    "unweighted_vertices": 0,
+                    "influence_count": 42,
+                    "max_influences": 1,
+                    "max_weight_sum_error": 0.0,
+                    "non_bone_assignments": 0,
+                }
+            ],
+            "summary": {
+                "bindings": 1,
+                "vertices": 42,
+                "weighted_vertices": 42,
+                "unweighted_vertices": 0,
+                "influences": 42,
+                "max_influences": 1,
+                "max_weight_sum_error": 0.0,
+                "non_bone_assignments": 0,
+            },
+        }
+        (output / "skeleton.json").write_text(json.dumps(skeleton), encoding="utf-8")
+        (output / "skin-weights.json").write_text(
+            json.dumps(weights), encoding="utf-8"
+        )
         preview_dir = output / "previews"
         preview_dir.mkdir()
         for name in assets.PREVIEW_NAMES:
@@ -125,7 +216,14 @@ def test_build_writes_measured_derivatives_and_preserves_manual_notes(
     assert "Keep this hand-written note." in readme.read_text(encoding="utf-8")
     inspection = json.loads((package / "inspection" / "report.json").read_text())
     assert inspection["armatures"][0]["bones"] == 12
+    assert inspection["skeleton"]["path"] == "inspection/skeleton.json"
+    assert inspection["skin_weights"]["summary"]["influences"] == 42
+    assert (package / "inspection" / "skeleton.json").is_file()
+    assert (package / "inspection" / "skin-weights.json").is_file()
     assert inspection["web_measurements"]["vertices"] > 0
+    card = assets.list_assets(project)[0]
+    assert card.skeleton == "inspection/skeleton.json"
+    assert card.deform_bones == 12
     assert assets.validate(project) == [{"id": "dragon", "valid": True, "errors": []}]
 
     (package / "source" / "dragon.blend").write_bytes(b"changed source")

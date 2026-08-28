@@ -52,7 +52,7 @@ function named for the write it performs (`write_measurements`, `fetch`,
 | `charctx assets organize` | Explicit no-argument mutation that preflights and organizes every eligible loose candidate without overwrite or force behavior. |
 | `charctx assets list` | Normalized asset cards from validated README front matter plus measured inspection facts. |
 | `charctx assets show <id>` | Full normalized character facts, including every linked generated run and its current pipeline stages. |
-| `charctx assets build [<id>]` | Explicitly write measured inspection output, standard preview renders, browser GLB, and the generated README body for one package or all packages. |
+| `charctx assets build [<id>]` | Explicitly write measured inspection output, extracted skeleton and sparse skin-weight JSON when present, standard preview renders, browser GLB, and the generated README body for one package or all packages. |
 | `charctx assets validate [<id>]` | Validate package schemas, confined paths, hashes, and required derived outputs without rewriting them. |
 | `charctx web` | Start the private loopback-only Astro catalog/viewer; it calls this CLI for all asset facts. |
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class AssetSource(BaseModel):
@@ -57,6 +57,148 @@ class AssetFileRecord(BaseModel):
     sha256: str
 
 
+class DerivedArtifactRecord(BaseModel):
+    """Declared, hash-bound derivative inside one asset package."""
+
+    path: str
+    bytes: int = Field(ge=0)
+    sha256: str
+    schema_id: str = Field(alias="schema")
+    summary: dict[str, Any] = Field(default_factory=dict)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class SkeletonBone(BaseModel):
+    """One unmodified source bone measured in rest pose."""
+
+    name: str
+    parent: str | None = None
+    deform: bool
+    connected: bool
+    depth: int = Field(ge=0)
+    head: tuple[float, float, float]
+    tail: tuple[float, float, float]
+    head_local: tuple[float, float, float]
+    tail_local: tuple[float, float, float]
+    length: float = Field(ge=0)
+    roll: float
+    matrix_local: list[list[float]]
+
+
+class SkeletonArmature(BaseModel):
+    name: str
+    pose_position: str
+    object_matrix: list[list[float]]
+    bones: list[SkeletonBone]
+    roots: list[str]
+    leaves: list[str]
+    max_depth: int = Field(ge=0)
+    bounds_min: tuple[float, float, float]
+    bounds_max: tuple[float, float, float]
+    total_length: float = Field(ge=0)
+    deform_total_length: float = Field(ge=0)
+    name_signals: dict[str, int] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_hierarchy(self) -> SkeletonArmature:
+        names = [bone.name for bone in self.bones]
+        if len(names) != len(set(names)):
+            raise ValueError(f"armature {self.name!r} has duplicate bone names")
+        known = set(names)
+        for bone in self.bones:
+            if bone.parent is not None and bone.parent not in known:
+                raise ValueError(
+                    f"bone {bone.name!r} has unknown parent {bone.parent!r}"
+                )
+            seen = {bone.name}
+            parent = bone.parent
+            while parent is not None:
+                if parent in seen:
+                    raise ValueError(f"bone hierarchy cycles through {parent!r}")
+                seen.add(parent)
+                parent = next(item.parent for item in self.bones if item.name == parent)
+        measured_roots = [bone.name for bone in self.bones if bone.parent is None]
+        if self.roots != measured_roots:
+            raise ValueError("declared roots disagree with the bone hierarchy")
+        return self
+
+
+class SkeletonDocument(BaseModel):
+    """Blender-independent, faithful donor skeleton extraction."""
+
+    schema_id: Literal["charctx.skeleton/v1"] = Field(
+        default="charctx.skeleton/v1", alias="schema"
+    )
+    asset_id: str
+    blender_version: str
+    source_model: str
+    coordinate_system: dict[str, Any]
+    armatures: list[SkeletonArmature]
+    summary: dict[str, Any]
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class SkinWeightBinding(BaseModel):
+    mesh: str
+    armature: str
+    vertices: int = Field(ge=0)
+    bone_names: list[str]
+    vertex_offsets: list[int]
+    bone_indices: list[int]
+    weights: list[float]
+    weighted_vertices: int = Field(ge=0)
+    unweighted_vertices: int = Field(ge=0)
+    influence_count: int = Field(ge=0)
+    max_influences: int = Field(ge=0)
+    max_weight_sum_error: float = Field(ge=0)
+    non_bone_assignments: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def validate_sparse_encoding(self) -> SkinWeightBinding:
+        if len(self.vertex_offsets) != self.vertices + 1:
+            raise ValueError("vertex_offsets must contain vertices + 1 entries")
+        if not self.vertex_offsets or self.vertex_offsets[0] != 0:
+            raise ValueError("vertex_offsets must begin at zero")
+        if any(
+            current > following
+            for current, following in zip(
+                self.vertex_offsets, self.vertex_offsets[1:], strict=False
+            )
+        ):
+            raise ValueError("vertex_offsets must be non-decreasing")
+        if len(self.bone_indices) != len(self.weights):
+            raise ValueError("bone_indices and weights must have equal length")
+        if self.vertex_offsets[-1] != len(self.weights):
+            raise ValueError("last vertex offset must equal the influence count")
+        if self.influence_count != len(self.weights):
+            raise ValueError("declared influence_count disagrees with weights")
+        if any(
+            index < 0 or index >= len(self.bone_names)
+            for index in self.bone_indices
+        ):
+            raise ValueError("bone index escapes bone_names")
+        if self.weighted_vertices + self.unweighted_vertices != self.vertices:
+            raise ValueError("weighted and unweighted counts disagree with vertices")
+        return self
+
+
+class SkinWeightsDocument(BaseModel):
+    """Exact sparse source skin bindings; no weight synthesis or normalization."""
+
+    schema_id: Literal["charctx.skin-weights/v1"] = Field(
+        default="charctx.skin-weights/v1", alias="schema"
+    )
+    asset_id: str
+    source_model: str
+    encoding: Literal["csr-per-vertex"] = "csr-per-vertex"
+    bindings: list[SkinWeightBinding]
+    summary: dict[str, Any]
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class AssetInspection(BaseModel):
     """Measured facts written by the asset build pipeline."""
 
@@ -75,6 +217,8 @@ class AssetInspection(BaseModel):
     images: list[dict[str, Any]]
     bounds: dict[str, Any]
     web_measurements: dict[str, Any]
+    skeleton: DerivedArtifactRecord | None = None
+    skin_weights: DerivedArtifactRecord | None = None
     warnings: list[str] = Field(default_factory=list)
 
     model_config = ConfigDict(populate_by_name=True)
@@ -99,6 +243,9 @@ class AssetCard(BaseModel):
     polygons: int
     cover: str | None
     web_model: str | None
+    skeleton: str | None = None
+    skin_weights: str | None = None
+    deform_bones: int = 0
     previews: list[str]
     generations: int = 0
     warnings: list[str]

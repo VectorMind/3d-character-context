@@ -472,6 +472,8 @@ def cmd_assets_list(args: argparse.Namespace) -> int:
         badges = ["reference images"] if card.kind == "reference" else [
             "rigged" if card.rigged else "unrigged"
         ]
+        if card.kind == "donor" and card.skeleton:
+            badges.append("skeleton extracted")
         if card.kind == "donor" and card.animated:
             badges.append("animated")
         badges.append(card.provenance_status)
@@ -501,6 +503,8 @@ def cmd_assets_show(args: argparse.Namespace) -> int:
             "  geometry   : "
             f"{card['vertices']:,} vertices, {card['polygons']:,} polygons",
             f"  rig        : {card['bones']} bones, {card['actions']} action(s)",
+            f"  skeleton   : {card['skeleton'] or 'not extracted'}",
+            f"  weights    : {card['skin_weights'] or 'not extracted'}",
             f"  web model  : {card['web_model'] or 'not built'}",
         ]
     for warning in card["warnings"]:

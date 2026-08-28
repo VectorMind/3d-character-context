@@ -7,11 +7,27 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 
 import bpy
 from mathutils import Vector
+
+NAME_SIGNAL_TERMS = (
+    "spine",
+    "neck",
+    "head",
+    "jaw",
+    "tail",
+    "wing",
+    "finger",
+    "thigh",
+    "shin",
+    "foot",
+    "toe",
+    "eye",
+)
 
 
 def arguments() -> argparse.Namespace:
@@ -59,6 +75,208 @@ def mesh_bounds() -> tuple[Vector, Vector]:
     minimum = Vector(min(point[i] for point in points) for i in range(3))
     maximum = Vector(max(point[i] for point in points) for i in range(3))
     return minimum, maximum
+
+
+def matrix_rows(matrix) -> list[list[float]]:
+    return [[float(matrix[row][column]) for column in range(4)] for row in range(4)]
+
+
+def viewer_point(point: Vector) -> list[float]:
+    """Convert Blender world coordinates to exported glTF model coordinates."""
+    return [float(point.x), float(point.z), float(-point.y)]
+
+
+def bone_depth(bone) -> int:
+    depth = 0
+    parent = bone.parent
+    while parent is not None:
+        depth += 1
+        parent = parent.parent
+    return depth
+
+
+def extract_skeleton(asset_id: str, source_model: str) -> dict | None:
+    armatures = []
+    for obj in sorted(
+        (item for item in bpy.data.objects if item.type == "ARMATURE"),
+        key=lambda item: item.name,
+    ):
+        bones = []
+        endpoints = []
+        for bone in obj.data.bones:
+            head_world = obj.matrix_world @ bone.head_local
+            tail_world = obj.matrix_world @ bone.tail_local
+            head = viewer_point(head_world)
+            tail = viewer_point(tail_world)
+            endpoints.extend((head, tail))
+            bones.append(
+                {
+                    "name": bone.name,
+                    "parent": bone.parent.name if bone.parent else None,
+                    "deform": bool(bone.use_deform),
+                    "connected": bool(bone.use_connect),
+                    "depth": bone_depth(bone),
+                    "head": head,
+                    "tail": tail,
+                    "head_local": [float(value) for value in bone.head_local],
+                    "tail_local": [float(value) for value in bone.tail_local],
+                    "length": float((tail_world - head_world).length),
+                    "roll": float(bone.matrix_local.to_euler("XYZ").y),
+                    "matrix_local": matrix_rows(bone.matrix_local),
+                }
+            )
+        if not bones:
+            continue
+        names = [bone["name"] for bone in bones]
+        lowered = [name.lower() for name in names]
+        bounds_min = [min(point[axis] for point in endpoints) for axis in range(3)]
+        bounds_max = [max(point[axis] for point in endpoints) for axis in range(3)]
+        parent_names = {bone["parent"] for bone in bones if bone["parent"]}
+        armatures.append(
+            {
+                "name": obj.name,
+                "pose_position": obj.data.pose_position,
+                "object_matrix": matrix_rows(obj.matrix_world),
+                "bones": bones,
+                "roots": [bone["name"] for bone in bones if bone["parent"] is None],
+                "leaves": [name for name in names if name not in parent_names],
+                "max_depth": max(bone["depth"] for bone in bones),
+                "bounds_min": bounds_min,
+                "bounds_max": bounds_max,
+                "total_length": sum(bone["length"] for bone in bones),
+                "deform_total_length": sum(
+                    bone["length"] for bone in bones if bone["deform"]
+                ),
+                "name_signals": {
+                    term: sum(term in name for name in lowered)
+                    for term in NAME_SIGNAL_TERMS
+                },
+            }
+        )
+    if not armatures:
+        return None
+    all_bones = [bone for armature in armatures for bone in armature["bones"]]
+    return {
+        "schema": "charctx.skeleton/v1",
+        "asset_id": asset_id,
+        "blender_version": bpy.app.version_string,
+        "source_model": source_model,
+        "coordinate_system": {
+            "viewer_space": "right-handed, +Y up, -Z forward",
+            "source_space": "Blender armature-local and Blender world",
+            "blender_world_to_viewer": "[x, z, -y]",
+            "scale": "source scene units; no normalization",
+            "pose": "armature rest pose",
+        },
+        "armatures": armatures,
+        "summary": {
+            "armatures": len(armatures),
+            "bones": len(all_bones),
+            "deform_bones": sum(bone["deform"] for bone in all_bones),
+            "roots": sum(len(armature["roots"]) for armature in armatures),
+            "leaves": sum(len(armature["leaves"]) for armature in armatures),
+            "max_depth": max(armature["max_depth"] for armature in armatures),
+        },
+    }
+
+
+def extract_skin_weights(asset_id: str, source_model: str) -> dict | None:
+    bindings = []
+    for obj in sorted(
+        (item for item in bpy.data.objects if item.type == "MESH"),
+        key=lambda item: item.name,
+    ):
+        armature = next(
+            (
+                modifier.object
+                for modifier in obj.modifiers
+                if modifier.type == "ARMATURE"
+                and modifier.object is not None
+                and modifier.object.type == "ARMATURE"
+            ),
+            None,
+        )
+        if armature is None:
+            continue
+        bone_names = [bone.name for bone in armature.data.bones]
+        bone_lookup = {name: index for index, name in enumerate(bone_names)}
+        group_to_bone = {
+            group.index: bone_lookup[group.name]
+            for group in obj.vertex_groups
+            if group.name in bone_lookup
+        }
+        vertex_offsets = [0]
+        bone_indices = []
+        weights = []
+        weighted_vertices = 0
+        max_influences = 0
+        max_weight_sum_error = 0.0
+        non_bone_assignments = 0
+        for vertex in obj.data.vertices:
+            influences = []
+            for assignment in vertex.groups:
+                bone_index = group_to_bone.get(assignment.group)
+                if bone_index is None:
+                    non_bone_assignments += 1
+                    continue
+                weight = float(assignment.weight)
+                if weight > 0 and math.isfinite(weight):
+                    influences.append((bone_index, weight))
+            influences.sort(key=lambda item: item[0])
+            if influences:
+                weighted_vertices += 1
+                max_weight_sum_error = max(
+                    max_weight_sum_error,
+                    abs(sum(weight for _, weight in influences) - 1.0),
+                )
+            max_influences = max(max_influences, len(influences))
+            bone_indices.extend(index for index, _ in influences)
+            weights.extend(weight for _, weight in influences)
+            vertex_offsets.append(len(bone_indices))
+        bindings.append(
+            {
+                "mesh": obj.name,
+                "armature": armature.name,
+                "vertices": len(obj.data.vertices),
+                "bone_names": bone_names,
+                "vertex_offsets": vertex_offsets,
+                "bone_indices": bone_indices,
+                "weights": weights,
+                "weighted_vertices": weighted_vertices,
+                "unweighted_vertices": len(obj.data.vertices) - weighted_vertices,
+                "influence_count": len(weights),
+                "max_influences": max_influences,
+                "max_weight_sum_error": max_weight_sum_error,
+                "non_bone_assignments": non_bone_assignments,
+            }
+        )
+    if not bindings:
+        return None
+    return {
+        "schema": "charctx.skin-weights/v1",
+        "asset_id": asset_id,
+        "source_model": source_model,
+        "encoding": "csr-per-vertex",
+        "bindings": bindings,
+        "summary": {
+            "bindings": len(bindings),
+            "vertices": sum(binding["vertices"] for binding in bindings),
+            "weighted_vertices": sum(
+                binding["weighted_vertices"] for binding in bindings
+            ),
+            "unweighted_vertices": sum(
+                binding["unweighted_vertices"] for binding in bindings
+            ),
+            "influences": sum(binding["influence_count"] for binding in bindings),
+            "max_influences": max(binding["max_influences"] for binding in bindings),
+            "max_weight_sum_error": max(
+                binding["max_weight_sum_error"] for binding in bindings
+            ),
+            "non_bone_assignments": sum(
+                binding["non_bone_assignments"] for binding in bindings
+            ),
+        },
+    }
 
 
 def inspect_scene() -> dict:
@@ -298,7 +516,20 @@ def main() -> None:
     output.mkdir(parents=True, exist_ok=True)
     if args.source:
         import_source(Path(args.source))
+    source_model = (
+        Path(args.source).name if args.source else Path(bpy.data.filepath).name
+    )
     report = inspect_scene()
+    skeleton = extract_skeleton(args.asset_id, source_model)
+    skin_weights = extract_skin_weights(args.asset_id, source_model)
+    if skeleton:
+        (output / "skeleton.json").write_text(
+            json.dumps(skeleton, indent=2), encoding="utf-8"
+        )
+    if skin_weights:
+        (output / "skin-weights.json").write_text(
+            json.dumps(skin_weights, separators=(",", ":")), encoding="utf-8"
+        )
     export_glb(output)
     render_views(output)
     (output / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")

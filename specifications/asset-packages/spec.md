@@ -28,6 +28,8 @@ bytes never cross between the repository and the project folder.
   inspection/
     report.json
     recipe.json
+    skeleton.json          # when an armature exists
+    skin-weights.json      # when armature-bound meshes exist
   previews/
     hero.webp
     front.webp
@@ -64,6 +66,27 @@ fabricated placeholder that looks verified.
 `inspection/recipe.json` records the exact source hash, tool/version, command
 options, coordinate/pose decisions, output hashes, and timing that produced the
 inspection and previews.
+
+When a donor contains an armature, `inspection/skeleton.json` is the measured,
+Blender-independent `charctx.skeleton/v1` authority for its unmodified source
+skeletons. It preserves each armature and bone name, parent, deform/connect
+flags, rest head/tail, roll, local matrix, hierarchy depth, roots/leaves, and
+aggregate bounds. It carries both Blender armature-local coordinates and
+viewer/model coordinates obtained from Blender world space with the explicit
+glTF conversion `[x, z, -y]`. Extraction does not normalize scale, rename
+bones, infer semantics, or choose a canonical skeleton.
+
+When meshes are bound to an armature, `inspection/skin-weights.json` is the
+`charctx.skin-weights/v1` authority for their unmodified sparse influences. A
+binding declares mesh and armature names, ordered bone names, CSR-style vertex
+offsets, bone indices, and weights, plus measured coverage and normalization
+facts. Non-bone vertex-group assignments are counted but never silently
+reinterpreted as bones.
+
+The inspection report declares both derivative paths, hashes, byte sizes,
+schemas, and bounded summaries. Catalog consumers use only these declared
+paths. A package with measured armatures is invalid when its declared skeleton
+artifact is missing, malformed, or hash-mismatched.
 
 The generated README body combines the two authorities into an image gallery,
 identity/provenance table, measured-characteristics table, file inventory, and
@@ -168,7 +191,8 @@ a warning.
 - Curated claims and measured facts have exactly one authority each.
 - Source hashes remain unchanged across inspection/render/build.
 - A successful build writes report/recipe JSON, five standard images, a
-  loadable GLB, and a regenerated README body.
+  loadable GLB, extracted skeleton/skin-binding JSON when present, and a
+  regenerated README body.
 - Incomplete provenance is visible but does not block private local viewing.
 - No source archive, BLEND, or FBX is exposed by the web asset endpoint.
 
@@ -176,5 +200,6 @@ a warning.
 
 - Public catalog hosting, publishing, redistribution, or license clearance.
 - Source-file repair, repacking, material invention, or rig editing.
-- Canonical topology/skeleton selection or semantic bone normalization.
+- Canonical topology/skeleton selection, semantic bone normalization,
+  retargeting, skeleton editing, or per-character rig fitting.
 - Treating preview derivatives as production or canonical assets.

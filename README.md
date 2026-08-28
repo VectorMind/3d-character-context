@@ -188,7 +188,10 @@ donors when the id is omitted. Reference-image packages remain cataloged but
 are skipped because they have no GLB build. A donor build writes
 `inspection/report.json`, a reproducibility recipe, five standard WebP
 previews, a browser GLB, and the generated README body while preserving the
-manual-notes block. Source files are not modified.
+manual-notes block. Rigged donors additionally receive a Blender-independent
+`inspection/skeleton.json` with their exact source hierarchy and rest geometry,
+plus sparse `inspection/skin-weights.json` bindings. Source files are not
+modified and extraction does not normalize or redesign the rig.
 
 ```powershell
 uv run charctx assets build european-dragon

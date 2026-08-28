@@ -22,6 +22,9 @@ export interface AssetCard {
   polygons: number;
   cover: string | null;
   web_model: string | null;
+  skeleton: string | null;
+  skin_weights: string | null;
+  deform_bones: number;
   previews: string[];
   generations: number;
   warnings: string[];

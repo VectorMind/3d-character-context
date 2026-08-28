@@ -48,22 +48,27 @@ states.
 The asset detail page shows:
 
 - the standard preview gallery;
-- an interactive GLB orbit/fit/wireframe view;
+- an interactive GLB orbit/fit/wireframe view with orbit, pan, and zoom;
 - curated identity, provenance, and license facts;
 - measured geometry/material/texture facts;
 - file inventory and hashes;
 - armature, bone, skin-weight, action, and frame summaries;
+- an as-extracted rest-skeleton overlay, visibility toggle, and x-ray model
+  mode only when the CLI declares a validated skeleton artifact;
 - missing-resource and build warnings.
 
-Future skeleton overlays, animation playback, texture-channel inspection,
-canonical comparisons, and deformation evidence appear only when a CLI
-capability flag and real artifact support them. The UI does not show fake
-controls over absent data.
+Animation playback, semantic/canonical skeleton comparisons, texture-channel
+inspection, and deformation evidence appear only when a CLI capability flag
+and real artifact support them. The UI does not show fake controls over absent
+data. The extracted overlay preserves donor bone geometry and names; it does
+not claim canonical semantics or production readiness.
 
 ## Artifact Confinement
 
 Web handlers serve only paths declared by normalized CLI output under a known
-package's `previews/` or `web/` directory. For every request they:
+package's `previews/`, `web/`, or declared `inspection/skeleton.json` artifact.
+Skin-weight data is catalog metadata but is not a browser artifact. For every
+request they:
 
 - identify the asset through the CLI catalog;
 - resolve both the declared root and requested file;
@@ -72,7 +77,8 @@ package's `previews/` or `web/` directory. For every request they:
 - use `no-store` or a content-hash cache key when derived files change.
 
 The server never exposes `source/`, `license/`, original vendor archives,
-BLEND/FBX files, `.cache/`, or arbitrary project paths.
+BLEND/FBX files, undeclared inspection files, `.cache/`, or arbitrary project
+paths.
 
 Generation handlers likewise resolve a character through `assets show`, then
 serve only that record's declared raw model, preserved inputs, or regenerated

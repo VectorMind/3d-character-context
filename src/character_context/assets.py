@@ -16,7 +16,15 @@ from typing import Any
 import yaml
 
 from . import artifacts, mesh_report
-from .asset_models import AssetCard, AssetFileRecord, AssetFrontMatter, AssetInspection
+from .asset_models import (
+    AssetCard,
+    AssetFileRecord,
+    AssetFrontMatter,
+    AssetInspection,
+    DerivedArtifactRecord,
+    SkeletonDocument,
+    SkinWeightsDocument,
+)
 from .config import ConfigError
 from .paths import REPORTS_DIR, SCRATCH_DIR, ensure_cache_layout
 from .project import Project
@@ -156,12 +164,38 @@ def _readme_text(
             ("Polygons", f"{polygons:,}"),
             ("Armatures", len(inspection.armatures)),
             ("Bones", bones),
+            (
+                "Deform bones",
+                inspection.skeleton.summary.get("deform_bones", 0)
+                if inspection.skeleton
+                else 0,
+            ),
             ("Weighted vertices", f"{weighted:,} / {total_vertices:,}"),
             ("Materials", len(inspection.materials)),
             ("Images", len(inspection.images)),
             ("Actions", len(inspection.actions)),
             ("Blender", inspection.blender_version),
         ]
+        if inspection.skeleton:
+            characteristics.extend(
+                [
+                    ("Skeleton extract", inspection.skeleton.path),
+                    (
+                        "Skeleton depth",
+                        inspection.skeleton.summary.get("max_depth", 0),
+                    ),
+                ]
+            )
+        if inspection.skin_weights:
+            characteristics.extend(
+                [
+                    ("Skin-weight extract", inspection.skin_weights.path),
+                    (
+                        "Exact bone influences",
+                        inspection.skin_weights.summary.get("influences", 0),
+                    ),
+                ]
+            )
         characteristic_rows = "\n".join(
             f"| {key} | {value} |" for key, value in characteristics
         )
@@ -549,6 +583,42 @@ def build_asset(project: Project, asset_id: str) -> dict[str, Any]:
         if not glb.is_file():
             raise ConfigError(f"Blender produced no GLB for {asset_id}; see {log}.")
         measurements = mesh_report.measure(glb, request_name=asset_id)
+        skeleton_path = blender_output / "skeleton.json"
+        skin_weights_path = blender_output / "skin-weights.json"
+        skeleton_document = None
+        skin_weights_document = None
+        if skeleton_path.is_file():
+            skeleton_raw = json.loads(skeleton_path.read_text(encoding="utf-8"))
+            skeleton_raw["source_model"] = model_label
+            skeleton_document = SkeletonDocument.model_validate(skeleton_raw)
+            skeleton_path.write_text(
+                skeleton_document.model_dump_json(indent=2, by_alias=True),
+                encoding="utf-8",
+            )
+        if skin_weights_path.is_file():
+            skin_weights_raw = json.loads(
+                skin_weights_path.read_text(encoding="utf-8")
+            )
+            skin_weights_raw["source_model"] = model_label
+            skin_weights_document = SkinWeightsDocument.model_validate(
+                skin_weights_raw
+            )
+            skin_weights_path.write_text(
+                skin_weights_document.model_dump_json(by_alias=True),
+                encoding="utf-8",
+            )
+
+        def derivative(
+            path: Path, relative: str, schema: str, summary: dict[str, Any]
+        ) -> dict[str, Any]:
+            return DerivedArtifactRecord(
+                path=relative,
+                bytes=path.stat().st_size,
+                sha256=_sha256(path),
+                schema=schema,
+                summary=summary,
+            ).model_dump(mode="json", by_alias=True)
+
         raw.update(
             {
                 "schema": "charctx.inspection/v1",
@@ -559,6 +629,22 @@ def build_asset(project: Project, asset_id: str) -> dict[str, Any]:
                     for record in _source_inventory(package)
                 ],
                 "web_measurements": json.loads(measurements.model_dump_json()),
+                "skeleton": derivative(
+                    skeleton_path,
+                    "inspection/skeleton.json",
+                    "charctx.skeleton/v1",
+                    skeleton_document.summary,
+                )
+                if skeleton_document
+                else None,
+                "skin_weights": derivative(
+                    skin_weights_path,
+                    "inspection/skin-weights.json",
+                    "charctx.skin-weights/v1",
+                    skin_weights_document.summary,
+                )
+                if skin_weights_document
+                else None,
             }
         )
         inspection = AssetInspection.model_validate(raw)
@@ -567,6 +653,10 @@ def build_asset(project: Project, asset_id: str) -> dict[str, Any]:
             inspection.model_dump_json(indent=2, by_alias=True), encoding="utf-8"
         )
         generated = [glb, report_path]
+        if skeleton_document:
+            generated.append(skeleton_path)
+        if skin_weights_document:
+            generated.append(skin_weights_path)
         for name in PREVIEW_NAMES:
             preview = blender_output / "previews" / f"{name}.webp"
             if not preview.is_file() or preview.stat().st_size == 0:
@@ -600,6 +690,13 @@ def build_asset(project: Project, asset_id: str) -> dict[str, Any]:
             )
         _atomic_copy(report_path, package / "inspection" / "report.json")
         _atomic_copy(recipe_path, package / "inspection" / "recipe.json")
+        if skeleton_document:
+            _atomic_copy(skeleton_path, package / "inspection" / "skeleton.json")
+        if skin_weights_document:
+            _atomic_copy(
+                skin_weights_path,
+                package / "inspection" / "skin-weights.json",
+            )
     _write_readme(package, metadata, inspection)
     return {
         "id": asset_id,
@@ -607,6 +704,12 @@ def build_asset(project: Project, asset_id: str) -> dict[str, Any]:
         "report": str(package / "inspection" / "report.json"),
         "recipe": str(package / "inspection" / "recipe.json"),
         "web_model": str(package / "web" / "model.glb"),
+        "skeleton": str(package / "inspection" / "skeleton.json")
+        if inspection.skeleton
+        else None,
+        "skin_weights": str(package / "inspection" / "skin-weights.json")
+        if inspection.skin_weights
+        else None,
         "previews": [
             str(package / "previews" / f"{name}.webp") for name in PREVIEW_NAMES
         ],
@@ -689,6 +792,21 @@ def _card(
         polygons=sum(int(item.get("polygons", 0)) for item in meshes),
         cover=metadata.cover if cover.is_file() else None,
         web_model=metadata.web_model if model.is_file() else None,
+        skeleton=(
+            inspection.skeleton.path
+            if inspection and inspection.skeleton
+            else None
+        ),
+        skin_weights=(
+            inspection.skin_weights.path
+            if inspection and inspection.skin_weights
+            else None
+        ),
+        deform_bones=(
+            int(inspection.skeleton.summary.get("deform_bones", 0))
+            if inspection and inspection.skeleton
+            else 0
+        ),
         previews=previews,
         generations=generation_count,
         warnings=warnings,
@@ -758,6 +876,26 @@ def validate(project: Project, asset_id: str | None = None) -> list[dict[str, An
                 path = (package / relative).resolve()
                 if not _inside(path, package) or not path.is_file():
                     errors.append(f"derived output missing: {relative}")
+            declared = [
+                (inspection.skeleton, SkeletonDocument),
+                (inspection.skin_weights, SkinWeightsDocument),
+            ]
+            for artifact, model_type in declared:
+                if artifact is None:
+                    continue
+                path = (package / artifact.path).resolve()
+                if not _inside(path, package / "inspection") or not path.is_file():
+                    errors.append(f"declared extraction missing: {artifact.path}")
+                    continue
+                if _sha256(path) != artifact.sha256:
+                    errors.append(f"extraction hash mismatch: {artifact.path}")
+                    continue
+                try:
+                    model_type.model_validate_json(path.read_text(encoding="utf-8"))
+                except Exception as exc:
+                    errors.append(f"invalid extraction {artifact.path}: {exc}")
+            if inspection.armatures and inspection.skeleton is None:
+                errors.append("measured armature has no skeleton extraction")
         else:
             errors.append("asset has not been built")
         results.append({"id": card.id, "valid": not errors, "errors": errors})
