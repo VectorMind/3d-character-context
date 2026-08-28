@@ -24,6 +24,10 @@ Progress: `[####################] 100%`
   are summarized but playback remains a future capability.
 - Restricted the artifact route to the CLI-declared preview/GLB allowlist with
   real-path confinement; source asset requests return 404.
+- Cleared Blender's factory-startup objects before importing non-BLEND donors.
+  This prevented the default cube from leaking into the promoted
+  `ninjago-riyu-generated-001` inspection, previews, and browser GLB while
+  preserving the copied generated GLB byte-for-byte under `source/`.
 
 ## Deviations And Findings
 
@@ -46,3 +50,9 @@ All changes are under the selected private project at
 `assets/collected/`. Original downloads now live under each package's
 `source/`; derived reports, recipes, previews, GLBs, and README cards are
 co-located in their specified directories.
+
+On 2026-08-28 the append-only generated run `trellis2/ninjago-riyu-001` was
+copied into the separate donor package `ninjago-riyu-generated-001`. The
+generated run remains unchanged and authoritative; its GLB and the package
+source copy share SHA-256
+`ffeedea52006706e3e1eda4d9034386c90581896441b14220f9cfec3b9fac12c`.

@@ -172,10 +172,12 @@ uv run charctx assets show european-dragon --json
 
 ### `charctx assets build [id]`
 
-Use provisioned Blender to inspect and build one package, or all packages when
-the id is omitted. It writes `inspection/report.json`, a reproducibility
-recipe, five standard WebP previews, a browser GLB, and the generated README
-body while preserving the manual-notes block. Source files are not modified.
+Use provisioned Blender to inspect and build one 3D donor package, or all 3D
+donors when the id is omitted. Reference-image packages remain cataloged but
+are skipped because they have no GLB build. A donor build writes
+`inspection/report.json`, a reproducibility recipe, five standard WebP
+previews, a browser GLB, and the generated README body while preserving the
+manual-notes block. Source files are not modified.
 
 ```powershell
 uv run charctx assets build european-dragon

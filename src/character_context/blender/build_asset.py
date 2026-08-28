@@ -24,6 +24,12 @@ def arguments() -> argparse.Namespace:
 
 
 def import_source(source: Path) -> None:
+    # Blender's factory-startup scene contains a cube, camera, and light.
+    # Imported donor formats must start from an empty scene so those defaults
+    # cannot leak into the measured/exported browser derivative.
+    bpy.ops.object.select_all(action="SELECT")
+    bpy.ops.object.delete(use_global=False)
+
     extension = source.suffix.lower()
     if extension == ".fbx":
         if hasattr(bpy.ops.wm, "fbx_import"):

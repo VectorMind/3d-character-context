@@ -38,6 +38,11 @@ The collection index shows:
 - measured rig and animation badges;
 - incomplete provenance and build warnings.
 
+Reference-image cards replace mesh/bone/action counts with their available
+view count and source formats. Their detail page shows the preview gallery and
+states that no interactive GLB is expected; it never presents a build prompt
+for an image-only package.
+
 The asset detail page shows:
 
 - the standard preview gallery;

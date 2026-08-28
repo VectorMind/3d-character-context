@@ -78,6 +78,9 @@ JSON contract.
 Everything under `source/` is immutable after package creation. Processing:
 
 - disables embedded BLEND auto-execution;
+- clears Blender's factory-startup objects before importing GLB, glTF, OBJ,
+  or FBX sources, so default scene geometry cannot enter measured or derived
+  output;
 - never saves the source scene;
 - extracts archive members only into transient `.cache/` staging after member
   path/count/expanded-size validation;
@@ -88,6 +91,22 @@ Everything under `source/` is immutable after package creation. Processing:
 
 The browser GLB and images are preview derivatives, not canonical production
 assets and not replacements for the vendor originals.
+
+## Reference-Image Packages
+
+A collected package may use `kind: reference` when its durable value is a
+curated multi-view image set rather than a 3D source model. It keeps supplied
+bytes under `source/`, declares one source image as `primary_file`, and
+provides the same five named WebP previews used by the private catalog.
+High-resolution run inputs remain under the project's `inputs/` root and are
+linked from the package report rather than duplicated as authoritative
+sources.
+
+Reference packages are listed, shown, and validated through `charctx assets`,
+but are not Blender-buildable and do not require an inspection report or web
+GLB. A no-id `assets build` skips them; an explicit build request fails with a
+clear reference-package message. Their generated images are visual aids, not
+measured geometry or canonical assets.
 
 ## Organization Contract
 

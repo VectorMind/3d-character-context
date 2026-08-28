@@ -6,6 +6,7 @@ const execFileAsync = promisify(execFile);
 export interface AssetCard {
   id: string;
   title: string;
+  kind: 'donor' | 'reference';
   status: string;
   provenance_status: string;
   family: string;

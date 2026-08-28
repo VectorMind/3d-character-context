@@ -425,7 +425,13 @@ def cmd_assets_inspect(args: argparse.Namespace) -> int:
         lines.append("  none")
     lines += ["", "packages:"]
     for item in payload["packages"]:
-        state = "built" if item["built"] else "not built"
+        state = (
+            "reference images"
+            if item["kind"] == "reference"
+            else "built"
+            if item["built"]
+            else "not built"
+        )
         lines.append(
             f"  {item['id']}: {item['title']} ({item['provenance_status']}, {state})"
         )
@@ -445,8 +451,10 @@ def cmd_assets_list(args: argparse.Namespace) -> int:
     payload = {"assets": [card.model_dump(mode="json") for card in cards]}
     lines = [f"collected assets: {len(cards)}"]
     for card in cards:
-        badges = ["rigged" if card.rigged else "unrigged"]
-        if card.animated:
+        badges = ["reference images"] if card.kind == "reference" else [
+            "rigged" if card.rigged else "unrigged"
+        ]
+        if card.kind == "donor" and card.animated:
             badges.append("animated")
         badges.append(card.provenance_status)
         lines.append(f"  {card.id}: {card.title} ({', '.join(badges)})")
@@ -465,11 +473,18 @@ def cmd_assets_show(args: argparse.Namespace) -> int:
     lines = [
         f"{card['id']}: {card['title']}",
         f"  package    : {card['package_dir']}",
+        f"  kind       : {card['kind']}",
         f"  provenance : {card['provenance_status']}",
-        f"  geometry   : {card['vertices']:,} vertices, {card['polygons']:,} polygons",
-        f"  rig        : {card['bones']} bones, {card['actions']} action(s)",
-        f"  web model  : {card['web_model'] or 'not built'}",
     ]
+    if card["kind"] == "reference":
+        lines.append(f"  previews   : {len(card['previews'])} image(s)")
+    else:
+        lines += [
+            "  geometry   : "
+            f"{card['vertices']:,} vertices, {card['polygons']:,} polygons",
+            f"  rig        : {card['bones']} bones, {card['actions']} action(s)",
+            f"  web model  : {card['web_model'] or 'not built'}",
+        ]
     for warning in card["warnings"]:
         lines.append(f"  warning    : {warning}")
     _emit(payload, lines, args.json)
@@ -658,11 +673,11 @@ def build_parser() -> argparse.ArgumentParser:
     assets_organize.set_defaults(func=cmd_assets_organize)
     assets_build = assets_sub.add_parser(
         "build",
-        help="inspect/render one asset or all assets",
+        help="inspect/render one 3D donor or all 3D donors",
         parents=[shared],
     )
     assets_build.add_argument(
-        "asset_id", nargs="?", help="asset id (default: build every package)"
+        "asset_id", nargs="?", help="asset id (default: build every 3D donor)"
     )
     assets_build.set_defaults(func=cmd_assets_build)
     assets_validate = assets_sub.add_parser(

@@ -282,9 +282,12 @@ def inspect_collection(project: Project) -> dict[str, Any]:
                 {
                     "id": metadata.id,
                     "title": metadata.title,
+                    "kind": metadata.kind,
                     "path": str(directory),
                     "provenance_status": metadata.provenance_status,
-                    "built": (directory / "inspection" / "report.json").is_file(),
+                    "built": (directory / "inspection" / "report.json").is_file()
+                    if metadata.kind == "donor"
+                    else None,
                 }
             )
     return {"root": str(root), "loose": loose, "packages": packages}
@@ -509,6 +512,10 @@ def _run_blender(
 
 def build_asset(project: Project, asset_id: str) -> dict[str, Any]:
     package, metadata = _package(project, asset_id)
+    if metadata.kind != "donor":
+        raise ConfigError(
+            f"Asset {asset_id!r} is a reference-image package and has no 3D build."
+        )
     primary = (package / metadata.primary_file).resolve()
     if not _inside(primary, package / "source") or not primary.is_file():
         raise ConfigError(
@@ -609,9 +616,15 @@ def build_asset(project: Project, asset_id: str) -> dict[str, Any]:
 
 
 def build(project: Project, asset_id: str | None = None) -> list[dict[str, Any]]:
-    ids = [asset_id] if asset_id else [item.id for item in list_assets(project)]
+    ids = (
+        [asset_id]
+        if asset_id
+        else [item.id for item in list_assets(project) if item.kind == "donor"]
+    )
     if not ids:
-        raise ConfigError(f"No collected asset packages under {_collected(project)}.")
+        raise ConfigError(
+            f"No buildable 3D donor packages under {_collected(project)}."
+        )
     return [build_asset(project, current) for current in ids]
 
 
@@ -642,6 +655,7 @@ def _card(package: Path, metadata: AssetFrontMatter) -> AssetCard:
     return AssetCard(
         id=metadata.id,
         title=metadata.title,
+        kind=metadata.kind,
         status=metadata.status,
         provenance_status=metadata.provenance_status,
         family=metadata.family,
@@ -702,7 +716,13 @@ def validate(project: Project, asset_id: str | None = None) -> list[dict[str, An
         if not _inside(primary, package / "source") or not primary.is_file():
             errors.append("primary source is missing or escapes source/")
         inspection = _inspection(package)
-        if inspection:
+        if metadata.kind == "reference":
+            for name in PREVIEW_NAMES:
+                relative = f"previews/{name}.webp"
+                path = (package / relative).resolve()
+                if not _inside(path, package / "previews") or not path.is_file():
+                    errors.append(f"reference preview missing: {relative}")
+        elif inspection:
             for record in inspection.source_files:
                 path = (package / record.path).resolve()
                 if not _inside(path, package / "source") or not path.is_file():

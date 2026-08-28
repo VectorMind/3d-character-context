@@ -105,3 +105,19 @@ permission to access that cache. No dependency was added or changed.
 - Source/provider/creator/license facts are missing for all three candidates.
 - Existing source texture links are missing or absolute and were not guessed;
   previews therefore use a neutral inspection material.
+
+## Generated Riyu Promotion Proof (2026-08-28)
+
+| Check | Actual |
+| --- | --- |
+| Copy + `charctx assets inspect` | Proposed `ninjago-riyu-generated-001` with no collision; source copy matched the append-only run hash |
+| `charctx assets organize --json` | Created a separate donor package and retained SHA-256 `ffeedea52006706e3e1eda4d9034386c90581896441b14220f9cfec3b9fac12c` |
+| `charctx assets build ninjago-riyu-generated-001 --json` | Produced inspection/recipe JSON, five previews, and `web/model.glb` from one imported mesh; no factory-startup cube remained |
+| `charctx assets validate ninjago-riyu-generated-001 --json` | Pass with no errors |
+| CLI catalog inspection | 203,745 source vertices, 289,479 polygons, one mesh object, no rig or animation |
+| Live local viewer | `/assets/ninjago-riyu-generated-001` returned 200 and reached `1 mesh loaded` with visible inspection geometry and no console errors |
+
+The optional source-material viewer mode renders this TRELLIS derivative
+transparent/invisible; the default neutral inspection material remains visible.
+This is recorded as a separate material-compatibility gap and did not alter the
+copied source or block geometry inspection.

@@ -37,7 +37,7 @@ class AssetFrontMatter(BaseModel):
     )
     id: str
     title: str
-    kind: Literal["donor"] = "donor"
+    kind: Literal["donor", "reference"] = "donor"
     status: Literal["collected", "selected", "canonical"] = "collected"
     provenance_status: Literal["complete", "incomplete"] = "incomplete"
     family: Literal["western-dragon"] = "western-dragon"
@@ -82,6 +82,7 @@ class AssetInspection(BaseModel):
 class AssetCard(BaseModel):
     id: str
     title: str
+    kind: str
     status: str
     provenance_status: str
     family: str

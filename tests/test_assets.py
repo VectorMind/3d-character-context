@@ -10,6 +10,7 @@ import pytest
 import trimesh
 
 from character_context import assets
+from character_context.asset_models import AssetFrontMatter
 from character_context.config import ConfigError
 from character_context.project import Project
 
@@ -144,3 +145,41 @@ def test_catalog_combines_curated_and_measured_facts(
     assert card.provenance_status == "incomplete"
     assert card.web_model is None
     assert any("Provenance incomplete" in warning for warning in card.warnings)
+
+
+def test_reference_image_package_validates_without_a_3d_build(
+    project_root: Path,
+) -> None:
+    root = collected(project_root)
+    package = root / "riyu"
+    for name in ("source", "license", "inspection", "previews", "web"):
+        (package / name).mkdir(parents=True, exist_ok=True)
+    (package / "source" / "side.jpg").write_bytes(b"reference image")
+    for name in assets.PREVIEW_NAMES:
+        (package / "previews" / f"{name}.webp").write_bytes(b"RIFFpreview")
+    assets._write_readme(
+        package,
+        AssetFrontMatter(
+            id="riyu",
+            title="Riyu Reference Turnaround",
+            kind="reference",
+            primary_file="source/side.jpg",
+        ),
+    )
+    project = Project(project_root)
+
+    card = assets.list_assets(project)[0]
+    assert card.kind == "reference"
+    assert card.web_model is None
+    assert card.previews == [
+        "previews/hero.webp",
+        "previews/front.webp",
+        "previews/left.webp",
+        "previews/rear.webp",
+        "previews/top.webp",
+    ]
+    assert assets.validate(project) == [{"id": "riyu", "valid": True, "errors": []}]
+    with pytest.raises(ConfigError, match="reference-image package"):
+        assets.build_asset(project, "riyu")
+    with pytest.raises(ConfigError, match="No buildable 3D donor packages"):
+        assets.build(project)
