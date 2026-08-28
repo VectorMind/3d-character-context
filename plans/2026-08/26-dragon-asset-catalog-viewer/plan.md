@@ -1,7 +1,7 @@
 # Plan — Dragon Asset Catalog And Web Viewer
 
 Date: 2026-08-26  
-Status: Implemented and verified — OP-001…OP-006 accepted; three source
+Status: Implemented, verified, and closed — OP-001…OP-006 accepted; three source
 assets organized, inspected, rendered, validated, and available through the
 private CLI-started Astro catalog
 

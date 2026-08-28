@@ -17,7 +17,7 @@ const assets = await listAssets();
         <div class="card-body">
           <div class="card-top"><div><p class="eyebrow">{asset.family}</p><h2>{asset.title}</h2></div><span class:list={['badge', { bad: asset.provenance_status !== 'complete' }]}>{asset.provenance_status} provenance</span></div>
           {asset.kind === 'reference' ?
-            <div class="stats"><div class="stat"><strong>{asset.previews.length}</strong><span>views</span></div><div class="stat"><strong>{asset.source_formats.join(', ')}</strong><span>source formats</span></div><div class="stat"><strong>image</strong><span>reference</span></div></div> :
+            <div class="stats"><div class="stat"><strong>{asset.previews.length}</strong><span>reference views</span></div><div class="stat"><strong>{asset.generations}</strong><span>generations</span></div><div class="stat"><strong>{asset.generations ? '3D' : 'image'}</strong><span>latest stage</span></div></div> :
             <div class="stats"><div class="stat"><strong>{asset.vertices.toLocaleString()}</strong><span>vertices</span></div><div class="stat"><strong>{asset.bones}</strong><span>bones</span></div><div class="stat"><strong>{asset.actions}</strong><span>actions</span></div></div>}
         </div>
       </a>)}

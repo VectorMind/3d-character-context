@@ -18,7 +18,7 @@ and running notes in `plans/` instead.
 | --- | --- |
 | [workspace-layout](workspace-layout/spec.md) | The data/code split, the external project folder and its selection, append-only generation slots, `.cache/` and `.tools/`, secret handling |
 | [agent-interface](agent-interface/spec.md) | The single documented CLI, the side-effect-free Python API, exit codes, JSON output, failure reporting |
-| [generator-backend](generator-backend/spec.md) | The backend boundary and its contracts, hosted-access facts and quota behavior, documented backend alternatives, staged geometry libraries |
+| [generator-backend](generator-backend/spec.md) | The backend boundary and its contracts, current TRELLIS.2 monoview cardinality, hosted-access facts and quota behavior, future multiview alternatives, staged geometry libraries |
 | [mesh-report](mesh-report/spec.md) | What a measured mesh fact is, the sidecar contract, and the verification level each pipeline stage owes |
 | [external-tools](external-tools/spec.md) | Declaring, pinning, checksum-verifying, and provisioning external binaries |
 | [asset-packages](asset-packages/spec.md) | Collected-asset package layout, README front matter, measured inspection facts, immutable sources, previews, and incomplete provenance |

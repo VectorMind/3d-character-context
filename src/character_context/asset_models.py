@@ -48,6 +48,7 @@ class AssetFrontMatter(BaseModel):
     primary_file: str
     cover: str = "previews/hero.webp"
     web_model: str = "web/model.glb"
+    generation_names: list[str] = Field(default_factory=list)
 
 
 class AssetFileRecord(BaseModel):
@@ -99,4 +100,38 @@ class AssetCard(BaseModel):
     cover: str | None
     web_model: str | None
     previews: list[str]
+    generations: int = 0
     warnings: list[str]
+
+
+class GenerationManifest(BaseModel):
+    """Self-contained, relative-path index for one append-only generation."""
+
+    schema_id: Literal["charctx.generation-view/v1"] = Field(
+        default="charctx.generation-view/v1", alias="schema"
+    )
+    character_id: str
+    backend: str
+    run: str
+    request_name: str
+    seed: int = 0
+    started_at: str | None = None
+    completed_at: str | None = None
+    duration_s: float | None = None
+    model: str
+    model_sha256: str
+    measurements: str | None = None
+    request_file: str = "request.json"
+    inputs: list[str] = Field(default_factory=list)
+    previews: list[str] = Field(default_factory=list)
+    stages: dict[str, str] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class GenerationRecord(GenerationManifest):
+    """Manifest plus normalized run location and measured facts for clients."""
+
+    run_dir: str
+    metrics: dict[str, Any] | None = None

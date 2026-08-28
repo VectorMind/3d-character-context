@@ -1,5 +1,11 @@
 # Riyu Reference Turnaround
 
+Date: 2026-08-28
+
+Status: Implemented, verified, and closed — OP-001…OP-003 accepted; five
+reference views, package metadata, catalog behavior, and runtime proof are
+complete.
+
 ## Problem Summary
 
 Five mixed-angle reference images of the same juvenile dragon need to become

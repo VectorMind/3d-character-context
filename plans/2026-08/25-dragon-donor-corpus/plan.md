@@ -1,9 +1,11 @@
 # Plan — Western-Dragon Donor Corpus Acquisition
 
 Date: 2026-08-25  
-Status: Planning — OP-001…OP-010 await maintainer review; three manually
-collected candidates were inventoried on 2026-08-26 but are not yet organized,
-provenanced, or accepted as donors
+Status: Open at Phase 0/7 — OP-001…OP-004 and OP-006…OP-010 await
+maintainer review; OP-005 is accepted. Three manually collected candidates
+were inventoried on 2026-08-26 and later organized, inspected, and made
+locally browsable by the separate completed asset-catalog packet, but they
+remain unprovenanced and are not accepted as donors.
 Basis:
 [`dragon_blender_rigging_handoff.md`](../25-rigging/dragon_blender_rigging_handoff.md),
 especially sections 8–16 and milestone 2A

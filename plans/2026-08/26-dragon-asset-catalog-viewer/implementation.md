@@ -1,6 +1,10 @@
 # Implementation — Dragon Asset Catalog And Web Viewer
 
-Progress: `[####################] 100%`
+## Progress
+
+`■■■■■■ Done`
+Asset organization, inspection, previews, validation, CLI, and private catalog
+are implemented and proven.
 
 ## Landed
 
@@ -25,9 +29,20 @@ Progress: `[####################] 100%`
 - Restricted the artifact route to the CLI-declared preview/GLB allowlist with
   real-path confinement; source asset requests return 404.
 - Cleared Blender's factory-startup objects before importing non-BLEND donors.
-  This prevented the default cube from leaking into the promoted
-  `ninjago-riyu-generated-001` inspection, previews, and browser GLB while
-  preserving the copied generated GLB byte-for-byte under `source/`.
+  This prevents the default cube from leaking into imported inspection meshes
+  and model-derived previews.
+- Extended reference packages into unified character records. Their declared
+  generation request names now resolve append-only run manifests, measured
+  facts, inputs, raw GLBs, regenerated views, and stage states through
+  `assets show`; generated models are no longer copied into duplicate donor
+  packages.
+- Added `charctx generations build` and automatic post-generation view builds.
+  Each run gets a parseable `viewer.json` plus five neutral previews, while a
+  before/after SHA-256 check protects the provider model.
+- Extended the private web detail page with per-generation sections and a
+  confined generated-artifact route. Reference inputs, raw interactive model,
+  measurements, request data, regenerated views, and explicit future stages
+  now share one character URL.
 
 ## Deviations And Findings
 
@@ -43,6 +58,10 @@ Progress: `[####################] 100%`
   fallback was used. It exposed and drove fixes for incorrect detail-table
   keys and invisible rigged meshes with incomplete materials, then verified the
   final catalog, visible GLB inspection mesh, and wireframe interaction.
+- The plan originally deferred generated-run rendering from V1. On 2026-08-28
+  the maintainer explicitly expanded the existing viewer scope. The durable
+  package, workspace, web, and CLI specifications were updated in the same
+  pass; no unresolved architectural choice required a new plan packet.
 
 ## External Data Changes
 
@@ -51,8 +70,9 @@ All changes are under the selected private project at
 `source/`; derived reports, recipes, previews, GLBs, and README cards are
 co-located in their specified directories.
 
-On 2026-08-28 the append-only generated run `trellis2/ninjago-riyu-001` was
-copied into the separate donor package `ninjago-riyu-generated-001`. The
-generated run remains unchanged and authoritative; its GLB and the package
-source copy share SHA-256
+On 2026-08-28 the temporary duplicate donor package
+`ninjago-riyu-generated-001` was retired after its useful viewer derivatives
+were regenerated beside the authoritative append-only run. The reference
+record `ninjago-riyu` now links that run natively. The original GLB remained
+unchanged at SHA-256
 `ffeedea52006706e3e1eda4d9034386c90581896441b14220f9cfec3b9fac12c`.

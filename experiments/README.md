@@ -57,6 +57,13 @@ Useful flags for `hf_02_trellis_space.py`:
 | `--first-success` | Stop after the first Space that returns a GLB. |
 | `--measure <path…>` | Re-measure GLB files or folders already downloaded; no Space call, no quota. |
 
+The TRELLIS probe is currently a **monoview generation probe** even though its
+API-surface report records every endpoint parameter. In particular, it records
+original TRELLIS's `multiimages` and `multiimage_algo` parameters but submits
+an empty multi-image gallery. It does not prove multiview generation. The
+separate future work and provider candidates are tracked in
+[`plans/2026-08/28-multiview-support/plan.md`](../plans/2026-08/28-multiview-support/plan.md).
+
 ## Output
 
 Every run writes a timestamped folder — never overwriting an earlier run:

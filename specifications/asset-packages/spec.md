@@ -52,6 +52,7 @@ fabricated placeholder that looks verified.
 - license name/URL and stated restrictions when known;
 - acquisition method/date when known;
 - declared primary source, cover image, and browser-model paths.
+- generation request names owned by the character record.
 
 `inspection/report.json` is authoritative for measured facts:
 
@@ -102,11 +103,20 @@ High-resolution run inputs remain under the project's `inputs/` root and are
 linked from the package report rather than duplicated as authoritative
 sources.
 
-Reference packages are listed, shown, and validated through `charctx assets`,
-but are not Blender-buildable and do not require an inspection report or web
-GLB. A no-id `assets build` skips them; an explicit build request fails with a
-clear reference-package message. Their generated images are visual aids, not
-measured geometry or canonical assets.
+Reference packages are the durable character records. Their `generation_names`
+front-matter list links request names without copying generated meshes into a
+second collected package. `charctx assets show` discovers every matching run
+under `generated/` and embeds its normalized manifest and measurements. The
+package remains listed, shown, and validated through `charctx assets`, but is
+not Blender-buildable and does not require its own inspection report or web
+GLB. A no-id `assets build` skips it; an explicit build request fails with a
+clear reference-package message.
+
+One character therefore has one catalog identity and one detail page: source
+references first, followed by a section for each append-only generation and
+explicit future-stage states. Generated runs remain authoritative in
+`generated/`; they are never promoted by duplicating their model bytes into a
+second donor package.
 
 ## Organization Contract
 

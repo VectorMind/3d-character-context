@@ -2,8 +2,15 @@
 
 ## Progress
 
-`▱▱▱▱▱▱▱ Phase 0/7` — three manual candidates inventoried; decision pass and
-structured intake are next.
+`▱▱▱▱▱▱▱ Phase 0/7` — three manual candidates inventoried; the acquisition
+decision pass and structured intake are next.
+
+## Cross-Packet Context
+
+Their subsequent packaging, Blender inspection, previews, and local catalog
+were delivered by the separate completed Dragon Asset Catalog And Web Viewer
+packet. That work made the files safer to inspect but did not complete an
+acquisition phase or resolve their missing provenance.
 
 ## 2026-08-26 — Manual Candidate Drop And Read-Only Inventory
 

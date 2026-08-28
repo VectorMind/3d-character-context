@@ -1,7 +1,8 @@
 # 3d-character-context
 
-A generative-first 3D character workbench. A hosted generative 3D model
-(TRELLIS) invents novel character geometry from reference images; a
+A generative-first 3D character workbench. The currently implemented hosted
+generator (TRELLIS.2) invents novel character geometry from **one reference
+image**; a
 deterministic canonicalization layer then transforms that arbitrary mesh into
 a **known canonical topology**, fits a **known skeleton**, and exports
 predictable production assets (GLB/FBX).
@@ -22,6 +23,14 @@ contracts, the external project folder, TRELLIS.2, mesh measurement, Blender
 asset inspection/previews, the private Astro viewer, external-tool
 provisioning, and the `charctx` CLI. The canonical layer - template topology,
 landmarks, skeleton fitting, appearance transfer - is not built yet.
+
+Hosted generation is currently **monoview**. `charctx generate` and the
+`trellis2` backend condition each run on exactly one image. Genuine multi-image
+conditioning is a parked future capability with the provider options and open
+decisions tracked in
+[`plans/2026-08/28-multiview-support/plan.md`](plans/2026-08/28-multiview-support/plan.md).
+The plural `GenerationRequest.images` Python field is future-facing and does
+not mean that TRELLIS.2 consumes multiple views.
 
 The active packet is
 [`plans/2026-08/25-initial-bringup/plan.md`](plans/2026-08/25-initial-bringup/plan.md),
@@ -162,8 +171,10 @@ uv run charctx assets organize
 
 ### `charctx assets list` and `show <id>`
 
-Read normalized catalog cards or the complete curated/measured record for one
-asset. Both are read-only and are the data boundary used by the web app.
+Read normalized catalog cards or the complete character record for one asset.
+Reference records also include every append-only generation linked by their
+`generation_names` front-matter field. Both commands are read-only and form
+the data boundary used by the web app.
 
 ```powershell
 uv run charctx assets list
@@ -225,8 +236,10 @@ Add `--force` to re-download and re-extract.
 
 ### `charctx generate <image> --name <slug>`
 
-Send a reference image through a hosted backend and land the result in a
-fresh, append-only run slot, then measure it.
+Send exactly one reference image through the current hosted backend and land
+the result in a fresh, append-only run slot, then measure it. This command is
+monoview; repeated images, a view-set directory, or a contact sheet are not a
+supported substitute for a true multiview backend.
 
 ```powershell
 uv run charctx generate "$env:CHARCTX_PROJECT\inputs\references\red-dragon.png" --name red-dragon --seed 42
@@ -244,9 +257,17 @@ generated in 63.4s via microsoft/TRELLIS.2
   192190 vertices, 293665 faces, 3320 component(s), watertight=False
 ```
 
-The slot holds the mesh, its measurements, a copy of the reference image, and
-`request.json` (backend, Space, resolved options, seed, timestamps). Running
-the same command again creates `red-dragon-002` and overwrites nothing.
+The slot holds the untouched downloaded mesh, its measurements, copied input
+images, `request.json` (backend, Space, resolved options, seed, timestamps),
+five neutral model-derived previews, and `viewer.json`. The viewer manifest is
+easy to parse and records the model, inputs, measurements, previews, checksum,
+and current pipeline-stage states using run-relative paths. Running the same
+command again creates `red-dragon-002` and overwrites nothing.
+
+Future multiview support will use a provider endpoint that jointly conditions
+one mesh on two or more images. It will receive its own documented CLI shape;
+no such command is implemented today. See the
+[parked multiview plan](plans/2026-08/28-multiview-support/plan.md).
 
 | Flag | Effect |
 | --- | --- |
@@ -254,12 +275,24 @@ the same command again creates `red-dragon-002` and overwrites nothing.
 | `--seed <int>` | Generation seed |
 | `--option KEY=VALUE` | Override a backend option; repeatable |
 | `--no-report` | Skip measuring the downloaded mesh |
+| `--no-views` | Skip viewer manifest and model-derived preview creation |
 
 **Cost:** TRELLIS.2 runs on shared ZeroGPU hardware. Each call reserves 120 s
 of a small daily budget up front - roughly four generations per day on a free
 account - shared across every ZeroGPU Space the account touches. When the
 budget is spent, the command reports the provider's own message including
 when it resets, and no empty run slot is left behind.
+
+### `charctx generations build <backend>/<run-folder>`
+
+Backfill or refresh `viewer.json` and the five neutral previews for an
+existing generated run. The command checks the raw model SHA-256 before and
+after Blender and never modifies it. `--character` declares the reference
+record that owns the generation; when omitted, the request name is used.
+
+```powershell
+uv run charctx generations build trellis2/ninjago-riyu-001 --character ninjago-riyu
+```
 
 ### `charctx report <mesh>`
 

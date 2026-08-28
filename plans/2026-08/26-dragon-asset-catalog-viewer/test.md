@@ -106,18 +106,21 @@ permission to access that cache. No dependency was added or changed.
 - Existing source texture links are missing or absolute and were not guessed;
   previews therefore use a neutral inspection material.
 
-## Generated Riyu Promotion Proof (2026-08-28)
+## Unified Riyu Character Proof (2026-08-28)
 
 | Check | Actual |
 | --- | --- |
-| Copy + `charctx assets inspect` | Proposed `ninjago-riyu-generated-001` with no collision; source copy matched the append-only run hash |
-| `charctx assets organize --json` | Created a separate donor package and retained SHA-256 `ffeedea52006706e3e1eda4d9034386c90581896441b14220f9cfec3b9fac12c` |
-| `charctx assets build ninjago-riyu-generated-001 --json` | Produced inspection/recipe JSON, five previews, and `web/model.glb` from one imported mesh; no factory-startup cube remained |
-| `charctx assets validate ninjago-riyu-generated-001 --json` | Pass with no errors |
-| CLI catalog inspection | 203,745 source vertices, 289,479 polygons, one mesh object, no rig or animation |
-| Live local viewer | `/assets/ninjago-riyu-generated-001` returned 200 and reached `1 mesh loaded` with visible inspection geometry and no console errors |
+| `charctx generations build trellis2/ninjago-riyu-001 --character ninjago-riyu --json` | Wrote `viewer.json` and five neutral model-derived views; raw model SHA-256 remained `ffeedea52006706e3e1eda4d9034386c90581896441b14220f9cfec3b9fac12c` |
+| `charctx assets show ninjago-riyu --json` | One reference record embeds one generation with six explicit stage states, all inputs, model, measurements, previews, and checksum |
+| CLI catalog inspection | One `ninjago-riyu` card; 203,745 generation vertices and 289,479 faces; no duplicate generated-model card |
+| Artifact confinement | Declared model/input/preview paths load; request metadata, undeclared files, and traversal requests return 404 |
+| Live local viewer | `/assets/ninjago-riyu` reaches `1 mesh loaded` and shows reference views, Generation 001, measurements, inputs, regenerated views, and future-stage states without console errors |
 
-The optional source-material viewer mode renders this TRELLIS derivative
-transparent/invisible; the default neutral inspection material remains visible.
-This is recorded as a separate material-compatibility gap and did not alter the
-copied source or block geometry inspection.
+The TRELLIS source material renders transparent/invisible in this viewer, so
+raw generations deliberately open with the visible neutral inspection
+material. This changes only viewer presentation and not the generated GLB.
+
+Final unified-record regression checks: `uv run pytest` passed with **83
+passed, 1 live test skipped**; `uv run ruff check .`, `pnpm check`, Astro
+production build, and `git diff --check` passed. The local detail page reported
+`1 mesh loaded` with no browser warnings or errors.

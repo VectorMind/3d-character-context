@@ -11,8 +11,11 @@ What exists: the `charctx` CLI (`info`, `paths`, `backends`, `project`,
 `fetch`, `generate`, `report`), pydantic contracts, the external project
 folder with append-only run slots, the `microsoft/TRELLIS.2` backend,
 trimesh mesh measurement, and external-tool provisioning (Blender 5.2.1 in
-`.tools/`). What does not exist: canonical topology, landmarks, skeleton
-fitting, rigging, appearance transfer.
+`.tools/`). Hosted generation is monoview: `charctx generate` and `trellis2`
+condition a run on exactly one image. Genuine multiview support is parked in
+`plans/2026-08/28-multiview-support/`. What does not exist: a multiview
+backend, canonical topology, landmarks, skeleton fitting, rigging, appearance
+transfer.
 
 Read `README.md` for the command reference and `specifications/README.md` for
 the binding contracts. The active packet is
@@ -40,7 +43,7 @@ rather than trusting a document.
 ## Architecture In One Glance
 
 ```text
-reference image(s)
+one reference image (current; multiview is future work)
         ↓ HTTPS
 hosted generative 3D backend (TRELLIS / Hunyuan3D / commercial)
         ↓

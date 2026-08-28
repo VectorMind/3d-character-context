@@ -181,3 +181,37 @@ def test_assets_show_unknown_id_fails_clearly(
     code = main(["assets", "show", "missing"])
     assert code == 2
     assert "Unknown collected asset" in capsys.readouterr().err
+
+
+def test_generations_build_is_a_documented_cli_surface(
+    capsys, project_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(PROJECT_ENV_VAR, str(project_root))
+    expected = {
+        "character_id": "dragon",
+        "run": "trellis2/dragon-001",
+        "model": str(
+            project_root / "generated" / "trellis2" / "dragon-001" / "dragon.glb"
+        ),
+        "model_sha256": "abc123",
+        "manifest": str(
+            project_root / "generated" / "trellis2" / "dragon-001" / "viewer.json"
+        ),
+        "previews": [],
+    }
+    monkeypatch.setattr(
+        "character_context.generations.build_view", lambda *args, **kwargs: expected
+    )
+
+    code, payload = run_json(
+        capsys,
+        "generations",
+        "build",
+        "trellis2/dragon-001",
+        "--character",
+        "dragon",
+        "--json",
+    )
+
+    assert code == 0
+    assert payload == expected

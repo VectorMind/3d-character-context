@@ -1,22 +1,46 @@
 ---
 import ModelViewer from '../../components/ModelViewer';
 import Layout from '../../layout/Layout.astro';
-import { artifactUrl, showAsset } from '../../server/charctx';
+import { artifactUrl, generationArtifactUrl, showAsset } from '../../server/charctx';
 const id = Astro.params.id!;
 let data;
 try { data = await showAsset(id); } catch { return Astro.redirect('/'); }
-const { card, inspection, metadata } = data;
+const { card, inspection, metadata, generations = [] } = data;
 const sourceMaterialAvailable = (inspection?.materials?.length ?? 0) > 0 && !card.warnings.some((warning: string) => warning.startsWith('Missing external image'));
+const number = (value: number | null | undefined) => typeof value === 'number' ? value.toLocaleString() : '—';
+const bytes = (value: number | null | undefined) => typeof value === 'number' ? `${(value / 1024 / 1024).toFixed(2)} MiB` : '—';
+const stageLabels: Record<string,string> = { references:'References', generation:'Generation', canonicalization:'Canonical', skeleton:'Skeleton', rigging:'Rigging', poses:'Poses' };
 ---
-<Layout title={card.title} description={`Inspection card for ${card.title}`}>
+<Layout title={card.title} description={`Complete character record for ${card.title}`}>
   <div class="detail-top"><a class="back" href="/">← Collection</a><span class="eyebrow">/ {card.id}</span></div>
-  <div class="detail-title"><div><p class="eyebrow">{card.family} · {card.source_formats.join(', ')}</p><h1>{card.title}</h1></div><span class:list={['badge', { bad: card.provenance_status !== 'complete' }]}>{card.provenance_status} provenance</span></div>
-  {card.web_model ? <div class="viewer-shell"><ModelViewer client:load url={artifactUrl(card.id, card.web_model)} boundsMin={inspection.web_measurements.bounds_min} boundsMax={inspection.web_measurements.bounds_max} sourceMaterialAvailable={sourceMaterialAvailable} /></div> : card.kind === 'reference' ? <div class="panel">Image reference set — no interactive 3D model is expected for this package.</div> : <div class="panel">Run <code>charctx assets build {card.id}</code> to generate the viewer model.</div>}
-  <div class="two-col">
-    <section class="panel"><h2>{card.kind === 'reference' ? 'Reference characteristics' : 'Measured characteristics'}</h2><table class="facts"><tbody>
-      {card.kind === 'reference' ? <><tr><td>Views</td><td>{card.previews.length}</td></tr><tr><td>Source formats</td><td>{card.source_formats.join(', ')}</td></tr><tr><td>3D model</td><td>Not applicable</td></tr><tr><td>Primary source</td><td>{card.primary_file}</td></tr></> : <><tr><td>Vertices</td><td>{card.vertices.toLocaleString()}</td></tr><tr><td>Polygons</td><td>{card.polygons.toLocaleString()}</td></tr><tr><td>Mesh objects</td><td>{inspection?.meshes?.length ?? 0}</td></tr><tr><td>Rig</td><td>{card.rigged ? `${card.bones} bones` : 'None detected'}</td></tr><tr><td>Animation</td><td>{card.animated ? `${card.actions} actions` : 'None detected'}</td></tr><tr><td>Materials</td><td>{inspection?.materials?.length ?? 0}</td></tr><tr><td>Primary source</td><td>{card.primary_file}</td></tr></>}
-    </tbody></table></section>
-    <aside class="panel"><h2>Review notes</h2>{card.warnings.map((warning: string) => <p class="warning">{warning}</p>)}<table class="facts"><tbody><tr><td>Acquired</td><td>{metadata?.acquisition?.date ?? metadata?.acquisition?.acquired_at ?? 'unknown'}</td></tr><tr><td>License</td><td>{metadata?.license?.name ?? metadata?.license?.status ?? 'unknown'}</td></tr></tbody></table></aside>
+  <div class="detail-title">
+    <div><p class="eyebrow">{card.family} · {card.source_formats.join(', ')} · {generations.length} generation{generations.length === 1 ? '' : 's'}</p><h1>{card.title}</h1></div>
+    <span class:list={['badge', { bad: card.provenance_status !== 'complete' }]}>{card.provenance_status} provenance</span>
   </div>
-  <section class="gallery">{card.previews.map((preview: string) => <img src={artifactUrl(card.id, preview)} alt={`${card.title} ${preview.split('/').at(-1)?.replace('.webp','')} view`} loading="lazy" />)}</section>
+
+  {card.kind === 'donor' && card.web_model && <div class="viewer-shell"><ModelViewer client:load url={artifactUrl(card.id, card.web_model)} boundsMin={inspection.web_measurements.bounds_min} boundsMax={inspection.web_measurements.bounds_max} sourceMaterialAvailable={sourceMaterialAvailable} /></div>}
+  {card.kind === 'donor' && !card.web_model && <div class="panel">Run <code>charctx assets build {card.id}</code> to generate the viewer model.</div>}
+
+  <div class="two-col">
+    <section class="panel"><h2>{card.kind === 'reference' ? 'Character references' : 'Measured characteristics'}</h2><table class="facts"><tbody>
+      {card.kind === 'reference' ? <><tr><td>Reference views</td><td>{card.previews.length}</td></tr><tr><td>Generated runs</td><td>{generations.length}</td></tr><tr><td>Source formats</td><td>{card.source_formats.join(', ')}</td></tr><tr><td>Primary source</td><td>{card.primary_file}</td></tr></> : <><tr><td>Vertices</td><td>{number(card.vertices)}</td></tr><tr><td>Polygons</td><td>{number(card.polygons)}</td></tr><tr><td>Mesh objects</td><td>{inspection?.meshes?.length ?? 0}</td></tr><tr><td>Rig</td><td>{card.rigged ? `${card.bones} bones` : 'None detected'}</td></tr><tr><td>Animation</td><td>{card.animated ? `${card.actions} actions` : 'None detected'}</td></tr><tr><td>Materials</td><td>{inspection?.materials?.length ?? 0}</td></tr><tr><td>Primary source</td><td>{card.primary_file}</td></tr></>}
+    </tbody></table></section>
+    <aside class="panel"><h2>Review notes</h2>{card.warnings.map((warning: string) => <p class="warning">{warning}</p>)}<table class="facts"><tbody><tr><td>Acquired</td><td>{metadata?.acquisition?.date ?? metadata?.acquisition?.acquired_at ?? 'unknown'}</td></tr><tr><td>License</td><td>{metadata?.license?.name ?? metadata?.license?.status ?? 'unknown'}</td></tr><tr><td>Generation names</td><td>{metadata?.generation_names?.join(', ') || 'none linked'}</td></tr></tbody></table></aside>
+  </div>
+
+  {card.previews.length > 0 && <section class="content-section"><div class="section-head"><div><p class="eyebrow">Input</p><h2>Reference views</h2></div><span class="count">{card.previews.length} curated views</span></div><div class="gallery">{card.previews.map((preview: string) => <img src={artifactUrl(card.id, preview)} alt={`${card.title} ${preview.split('/').at(-1)?.replace('.webp','')} reference view`} loading="lazy" />)}</div></section>}
+
+  {generations.map((generation, index: number) => <section class="generation-block">
+    <div class="section-head generation-head"><div><p class="eyebrow">Generation {String(index + 1).padStart(3, '0')}</p><h2>{generation.backend} · {generation.run}</h2></div><div class="run-badges"><span class="badge">seed {generation.seed}</span><span class="badge">raw source mesh</span></div></div>
+    <div class="pipeline" aria-label={`Pipeline status for ${generation.run}`}>{Object.entries(generation.stages).map(([stage, status]) => <div class:list={['stage', { complete: status === 'complete' }]}><span>{stageLabels[stage] ?? stage}</span><strong>{status}</strong></div>)}</div>
+    <div class="viewer-shell"><ModelViewer client:load url={generationArtifactUrl(card.id, generation, generation.model)} boundsMin={generation.metrics?.bounds_min} boundsMax={generation.metrics?.bounds_max} sourceMaterialAvailable={false} /></div>
+    <div class="two-col">
+      <section class="panel"><h2>Generated mesh</h2><table class="facts"><tbody><tr><td>Vertices</td><td>{number(generation.metrics?.vertices)}</td></tr><tr><td>Faces</td><td>{number(generation.metrics?.faces)}</td></tr><tr><td>File size</td><td>{bytes(generation.metrics?.file_size_bytes)}</td></tr><tr><td>Components</td><td>{number(generation.metrics?.connected_components)}</td></tr><tr><td>Watertight</td><td>{generation.metrics?.watertight ? 'Yes' : 'No'}</td></tr><tr><td>Textured</td><td>{generation.metrics?.textured ? 'Yes' : 'No'}</td></tr></tbody></table></section>
+      <aside class="panel"><h2>Generation request</h2><table class="facts"><tbody><tr><td>Backend</td><td>{generation.backend}</td></tr><tr><td>Seed</td><td>{generation.seed}</td></tr><tr><td>Duration</td><td>{generation.duration_s ? `${generation.duration_s}s` : '—'}</td></tr><tr><td>Completed</td><td>{generation.completed_at?.replace('T', ' ') ?? '—'}</td></tr><tr><td>Model</td><td>{generation.model}</td></tr><tr><td>SHA-256</td><td class="hash">{generation.model_sha256}</td></tr></tbody></table>{generation.warnings.map((warning: string) => <p class="warning">{warning}</p>)}</aside>
+    </div>
+    {generation.inputs.length > 0 && <section class="subsection"><div class="section-head"><div><p class="eyebrow">Run evidence</p><h3>Inputs preserved with this generation</h3></div><span class="count">{generation.inputs.length} files</span></div><div class="gallery compact">{generation.inputs.map((input: string) => <img src={generationArtifactUrl(card.id, generation, input)} alt={`${generation.run} input ${input.split('/').at(-1)}`} loading="lazy" />)}</div></section>}
+    {generation.previews.length > 0 && <section class="subsection"><div class="section-head"><div><p class="eyebrow">Output inspection</p><h3>Views regenerated from the model</h3></div><span class="count">{generation.previews.length} neutral views</span></div><div class="gallery">{generation.previews.map((preview: string) => <img src={generationArtifactUrl(card.id, generation, preview)} alt={`${generation.run} generated ${preview.split('/').at(-1)?.replace('.webp','')} view`} loading="lazy" />)}</div></section>}
+  </section>)}
+
+  {card.kind === 'reference' && generations.length === 0 && <div class="panel empty-state"><h2>No generated runs linked yet</h2><p>Add this character id to <code>generation_names</code> in its package front matter; matching append-only runs will appear here automatically.</p></div>}
 </Layout>

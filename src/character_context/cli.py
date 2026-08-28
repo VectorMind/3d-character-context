@@ -320,6 +320,24 @@ def cmd_generate(args: argparse.Namespace) -> int:
             f"watertight={measurements.watertight}",
         ]
 
+    if not args.no_views:
+        from . import generations as generations_mod
+
+        try:
+            viewer = generations_mod.build_view(
+                selected,
+                f"{result.backend}/{result.run_dir.name}",
+                character_id=request.name,
+            )
+            payload["viewer"] = viewer
+            lines += [
+                f"  viewer: {Path(viewer['manifest']).name}",
+                f"  views : {len(viewer['previews'])} model-derived preview(s)",
+            ]
+        except ConfigError as exc:
+            payload["viewer_warning"] = str(exc)
+            lines.append(f"  viewer warning: {exc}")
+
     _emit(payload, lines, args.json)
     return 0
 
@@ -541,6 +559,26 @@ def cmd_assets_validate(args: argparse.Namespace) -> int:
     return 0 if valid else 1
 
 
+def cmd_generations_build(args: argparse.Namespace) -> int:
+    """Build model-derived views and a manifest for one generation run."""
+    from . import generations as generations_mod
+    from . import project as project_mod
+
+    selected = project_mod.select(args.project)
+    result = generations_mod.build_view(
+        selected, args.run, character_id=args.character
+    )
+    lines = [
+        f"generation view built: {result['run']}",
+        f"  character: {result['character_id']}",
+        f"  model    : {result['model']}",
+        f"  manifest : {result['manifest']}",
+        f"  previews : {len(result['previews'])}",
+    ]
+    _emit(result, lines, args.json)
+    return 0
+
+
 def cmd_web(args: argparse.Namespace) -> int:
     """Start the private local Astro asset catalog."""
     from . import project as project_mod
@@ -690,6 +728,27 @@ def build_parser() -> argparse.ArgumentParser:
     )
     assets_validate.set_defaults(func=cmd_assets_validate)
 
+    generations = subparsers.add_parser(
+        "generations",
+        help="append-only generation manifests and viewer views",
+        parents=[shared],
+    )
+    generations_sub = generations.add_subparsers(
+        dest="generations_command", required=True
+    )
+    generations_build = generations_sub.add_parser(
+        "build",
+        help="build viewer metadata and neutral views for one generation",
+        parents=[shared],
+    )
+    generations_build.add_argument(
+        "run", help="generation id as <backend>/<run-folder>"
+    )
+    generations_build.add_argument(
+        "--character", help="owning character id (default: request name)"
+    )
+    generations_build.set_defaults(func=cmd_generations_build)
+
     web = subparsers.add_parser(
         "web", help="start the private local dragon catalog", parents=[shared]
     )
@@ -736,6 +795,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-report",
         action="store_true",
         help="skip measuring the downloaded mesh",
+    )
+    generate.add_argument(
+        "--no-views",
+        action="store_true",
+        help="skip model-derived viewer previews and viewer.json",
     )
     generate.set_defaults(func=cmd_generate)
 

@@ -628,7 +628,25 @@ def build(project: Project, asset_id: str | None = None) -> list[dict[str, Any]]
     return [build_asset(project, current) for current in ids]
 
 
-def _card(package: Path, metadata: AssetFrontMatter) -> AssetCard:
+def _generation_records(
+    project: Project, metadata: AssetFrontMatter
+) -> list[dict[str, Any]]:
+    from . import generations
+
+    return [
+        record.model_dump(mode="json", by_alias=True)
+        for record in generations.discover(
+            project, metadata.generation_names, metadata.id
+        )
+    ]
+
+
+def _card(
+    package: Path,
+    metadata: AssetFrontMatter,
+    *,
+    generation_count: int = 0,
+) -> AssetCard:
     inspection = _inspection(package)
     warnings: list[str] = []
     if metadata.provenance_status == "incomplete":
@@ -672,6 +690,7 @@ def _card(package: Path, metadata: AssetFrontMatter) -> AssetCard:
         cover=metadata.cover if cover.is_file() else None,
         web_model=metadata.web_model if model.is_file() else None,
         previews=previews,
+        generations=generation_count,
         warnings=warnings,
     )
 
@@ -684,29 +703,35 @@ def list_assets(project: Project) -> list[AssetCard]:
         if not readme.is_file():
             continue
         metadata, _ = read_front_matter(readme)
-        cards.append(_card(package, metadata))
+        generation_count = len(_generation_records(project, metadata))
+        cards.append(_card(package, metadata, generation_count=generation_count))
     return cards
 
 
 def show_asset(project: Project, asset_id: str) -> dict[str, Any]:
     package, metadata = _package(project, asset_id)
     inspection = _inspection(package)
-    card = _card(package, metadata)
+    generations = _generation_records(project, metadata)
+    card = _card(package, metadata, generation_count=len(generations))
     return {
         "card": card.model_dump(mode="json"),
         "metadata": metadata.model_dump(mode="json", by_alias=True),
         "inspection": inspection.model_dump(mode="json", by_alias=True)
         if inspection
         else None,
+        "generations": generations,
     }
 
 
 def validate(project: Project, asset_id: str | None = None) -> list[dict[str, Any]]:
-    cards = (
-        [_card(*_package(project, asset_id)) if asset_id else None]
-        if asset_id
-        else list_assets(project)
-    )
+    if asset_id:
+        package, metadata = _package(project, asset_id)
+        count = len(_generation_records(project, metadata))
+        cards: list[AssetCard | None] = [
+            _card(package, metadata, generation_count=count)
+        ]
+    else:
+        cards = list(list_assets(project))
     results: list[dict[str, Any]] = []
     for card in cards:
         assert card is not None

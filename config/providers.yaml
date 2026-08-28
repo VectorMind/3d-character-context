@@ -7,9 +7,10 @@ default_backend: trellis2
 backends:
   trellis2:
     description: >-
-      Microsoft TRELLIS.2 image-to-3D, driven through its public Gradio Space.
-      Hugging Face serverless inference serves no image-to-3d model at all, so
-      a Space is the only free path to this model.
+      Microsoft TRELLIS.2 monoview image-to-3D, driven through its public
+      Gradio Space. Exactly one image conditions each run. Hugging Face
+      serverless inference serves no image-to-3d model at all, so a Space is
+      the only free path to this model.
     provider: huggingface-space
     space: "microsoft/TRELLIS.2"
     credential: HF_TOKEN
@@ -46,8 +47,10 @@ alternatives:
     space: "trellis-community/TRELLIS"
     call_shape: single-call
     note: >-
-      Original TRELLIS behind one /generate_and_extract_glb call. ~3x faster
-      and far simpler, but roughly 10k vertices against TRELLIS.2's ~190k.
+      Original TRELLIS behind one /generate_and_extract_glb call, including a
+      genuine multiimages gallery and stochastic/multidiffusion fusion. ~3x
+      faster and far simpler in the monoview probe, but its default export had
+      roughly 10k vertices against TRELLIS.2's ~190k.
   trellis-official-v1:
     provider: huggingface-space
     space: "microsoft/TRELLIS"

@@ -38,10 +38,12 @@ The collection index shows:
 - measured rig and animation badges;
 - incomplete provenance and build warnings.
 
-Reference-image cards replace mesh/bone/action counts with their available
-view count and source formats. Their detail page shows the preview gallery and
-states that no interactive GLB is expected; it never presents a build prompt
-for an image-only package.
+Reference-image cards replace donor mesh/bone/action counts with their
+available reference-view and linked-generation counts. Their detail page is a
+unified character record: it shows reference views, then one section per
+append-only generation with its input images, interactive raw GLB, measured
+facts, request metadata, checksum, regenerated model views, and pipeline-stage
+states.
 
 The asset detail page shows:
 
@@ -72,6 +74,11 @@ package's `previews/` or `web/` directory. For every request they:
 The server never exposes `source/`, `license/`, original vendor archives,
 BLEND/FBX files, `.cache/`, or arbitrary project paths.
 
+Generation handlers likewise resolve a character through `assets show`, then
+serve only that record's declared raw model, preserved inputs, or regenerated
+previews from the exact declared backend/run. Request metadata, measurement
+sidecars, undeclared files, and traversal attempts are not HTTP artifacts.
+
 ## CLI Boundary
 
 The web app obtains all normalized state through the documented `charctx
@@ -87,6 +94,8 @@ invoke asset builds, mutate Blender scenes, or change the selected project.
   default.
 - Catalog cards and details match `charctx assets ... --json` facts.
 - Every successfully built asset loads its images and GLB interactively.
+- Every linked generation appears on its reference character page without a
+  duplicate catalog card.
 - Incomplete provenance and missing-texture warnings are plainly visible.
 - Path traversal, symlink escape, and source-file requests are rejected.
 - Astro check, tests, production build, and a CLI-started local browser smoke

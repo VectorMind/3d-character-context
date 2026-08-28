@@ -22,10 +22,34 @@ provider file paths, provider error types - stays inside the backend module.
 A provider failure is re-raised as a backend error; a quota refusal is raised
 as a distinct error type carrying the provider's own message.
 
-`GenerationRequest` carries reference images, a run name, a seed, an optional
-prompt, and a free-form `options` mapping. Backend-specific knobs belong in
-`options`; they never become new top-level fields, because every backend has
-a different set.
+`GenerationRequest` carries one or more reference-image paths, a run name, a
+seed, an optional prompt, and a free-form `options` mapping. Its plural
+`images` field is a shared storage shape, not a promise that every backend
+supports multiview conditioning. Each backend defines and validates its input
+cardinality and view semantics. Backend-specific knobs belong in `options`;
+they never become new top-level fields, because every backend has a different
+set.
+
+### Input Cardinality
+
+The implemented generation surface is **monoview**:
+
+- `charctx generate <image>` accepts exactly one conditioning image;
+- `trellis2` targets the official `microsoft/TRELLIS.2` Space, whose
+  `/image_to_3d` endpoint has one singular image parameter;
+- a valid `trellis2` request therefore contains exactly one image.
+
+The plural contract exists so a future backend can implement genuine
+multi-image conditioning without replacing the boundary model. It must not be
+read as current multiview support. Until backend cardinality enforcement is
+implemented, direct Python callers are responsible for passing exactly one
+image to `trellis2`; extra paths are not additional conditioning.
+
+Genuine multiview support requires a provider/model endpoint that jointly
+conditions one generation on two or more images. Contact sheets, collages, or
+separate one-image generations do not satisfy that definition. The parked
+implementation and provider-selection work is tracked in
+[`plans/2026-08/28-multiview-support/plan.md`](../../plans/2026-08/28-multiview-support/plan.md).
 
 ### No Premature Abstraction
 
@@ -76,7 +100,8 @@ discarded result costs a substantial fraction of a day's capacity.
 ## Implemented Backend
 
 `trellis2` - Microsoft TRELLIS.2 through the `microsoft/TRELLIS.2` Space.
-Session-stateful: a session is started, the reference image is preprocessed,
+**Monoview only.** Session-stateful: a session is started, one reference image
+is preprocessed,
 `/image_to_3d` generates into the session, and `/extract_glb` pulls the mesh
 out of it. All four calls share one client. Credential: `HF_TOKEN`.
 
@@ -87,10 +112,14 @@ be integrated.
 
 | Alternative | Shape | What it offers | Integration |
 | --- | --- | --- | --- |
-| `trellis-community/TRELLIS` Space | Single call `/generate_and_extract_glb` | Original TRELLIS; roughly a third of the time and a far simpler contract, at roughly a twentieth of the vertex density | New backend module, single-call shape; same credential |
+| `trellis-community/TRELLIS` Space | Single call `/generate_and_extract_glb` | Original TRELLIS with genuine multi-image gallery conditioning and `stochastic` / `multidiffusion` fusion; roughly a third of the probed generation time and a far simpler contract, at roughly a twentieth of the probed default-export vertex density | New backend module, single-call shape; same credential |
 | `tencent/Hunyuan3D-2.1` Space | Two stages | Shape generation then texture paint, each with its own options (background removal, steps, guidance, octree resolution, target face count) | New backend module modelling both stages internally; same credential |
-| fal.ai serverless endpoints | REST, submit + poll | Hosted TRELLIS/Hunyuan variants without Space queues; paid | New backend module plus a provider credential |
-| Meshy, Tripo, Rodin | REST, task-based | Create task with image and options (topology, target polycount, PBR, sometimes rigging), poll a job id, download from result URLs in several formats | New backend module per provider, each with its own credential and job polling |
+| `tencent/Hunyuan3D-2mv` Space | Directional 1–4-view generation | Purpose-built multiview shape model with front/back/left/right inputs | Technically relevant but ineligible for this EU-based workflow unless suitable rights are established; new backend module and license review |
+| `fal-ai/trellis/multi` | REST, submit + poll | Managed original-TRELLIS multiview endpoint with image URL list and both fusion modes; paid | New backend module plus a provider credential |
+| Meshy Multi-Image to 3D | REST, task-based | One to four geometry-conditioning images and current multi-view texture guidance; paid | New backend module, credential, polling, and current terms review |
+| Tripo multiview-to-model | REST, task-based | Two to four directional inputs with a required front view; paid | New backend module, upload/polling, credential, and current terms review |
+| Rodin / Hyper3D and other commercial generators | REST, task-based | Possible production-oriented generation extras, but no multiview request contract is proven for this workspace | Discovery probe before it may be called a multiview candidate |
+| Unmerged TRELLIS.2 multi-image fork | Owned GPU deployment | Community patch proposes multi-image sampler fusion on TRELLIS.2 | Experimental only; validate and host an owned fork, never present it as official TRELLIS.2 support |
 | Duplicated Space in an owned account | Same as the Space it copies | Insulation from upstream churn, a private queue, optionally better hardware | Configuration change only |
 | Dedicated inference endpoint | REST | Reliable and private, paid GPU-hours | New provider kind plus a credential |
 
@@ -118,10 +147,13 @@ as an optional extra with a degraded fallback:
   with no network call and no quota spent.
 - Selecting a documented alternative as if it were implemented fails with a
   message that lists the implemented backends.
+- Backend descriptions and CLI documentation state supported input cardinality;
+  plural request storage alone is never presented as multiview capability.
 
 ## Non-Goals
 
 - Self-hosting generative models on local or rented GPUs.
+- Multiview generation in the currently implemented `trellis2` backend.
 - A backend protocol, registry, or plugin system.
 - Normalizing quality, style, or topology differences between backends: that
   is the canonical layer's work, not the boundary's.

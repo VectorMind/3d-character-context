@@ -56,6 +56,9 @@ gets a fresh slot:
     <name>.measurements.json       # its measured facts
     reference.<ext>                # the input, copied so the run is self-contained
     request.json                   # backend, space, options, seed, timestamps
+    viewer.json                    # normalized character/viewer artifact index
+    supporting-views/              # other generation inputs, when supplied
+    previews/                      # five neutral model-derived WebP views
 ```
 
 `<NNN>` increments; an existing slot is never reused, overwritten, or
@@ -64,6 +67,14 @@ brings back no artifact leaves no slot behind.
 
 Artifacts are written to a temporary name and renamed into place, so a
 cloud-sync client never observes or uploads a partially written file.
+
+`viewer.json` uses run-relative paths and records the character id, request
+name, raw model and SHA-256, measurements, all preserved inputs, generated
+previews, and explicit states for references, generation, canonicalization,
+skeleton, rigging, and poses. Later stages write their own manifest beneath
+the run; absence is `not-started`, never an inferred success. Viewer-derived
+files may be refreshed, but the provider model and request record remain
+immutable.
 
 ## Repository Output
 

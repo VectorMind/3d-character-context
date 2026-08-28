@@ -1,8 +1,9 @@
 # Test — Western-Dragon Donor Corpus Acquisition
 
 The packet remains in planning, but now includes read-only evidence about three
-candidate files manually collected by the maintainer. No candidate has yet
-been promoted into the proposed package lifecycle.
+candidate files manually collected by the maintainer. A separate completed
+packet later packaged and inspected them, but no candidate has yet been
+accepted into this packet's proposed donor-acquisition lifecycle.
 
 ## Planning Consistency Checks (2026-08-25)
 
@@ -70,6 +71,10 @@ no files moved, extracted, rendered, or rewritten.
 - Source URL, creator, license, and true acquisition date are unknown for all
   three candidates; they must remain `hold` unless supplied or deliberately
   resolved.
-- The European-dragon FBX has not yet been imported or measured.
-- No reusable asset-package, inspection, render, README-generation, or web
-  viewer command exists yet; that work is planned separately.
+- The European-dragon FBX was later imported and measured by the completed
+  asset-catalog packet; that is asset-inspection proof, not acquisition or
+  provenance proof for this packet.
+- Reusable asset-package, inspection, render, README-generation, and web-viewer
+  commands now exist through the completed asset-catalog packet. Source-system
+  acquisition research, intake decisions, and donor-corpus selection remain
+  outstanding here.
