@@ -20,9 +20,11 @@ The guiding rule:
 
 The hosted-generation and collected-asset catalog slices are implemented:
 contracts, the external project folder, TRELLIS.2, mesh measurement, Blender
-asset inspection/previews, the private Astro viewer, external-tool
-provisioning, and the `charctx` CLI. The canonical layer - template topology,
-landmarks, skeleton fitting, appearance transfer - is not built yet.
+asset inspection/previews, donor skeleton/skin-weight extraction with its
+browser overlay, the private Astro viewer, external-tool provisioning, and the
+`charctx` CLI. The canonical layer - template topology, landmarks, skeleton
+fitting, appearance transfer - is not built yet. Donor rigs are extracted and
+inspectable, never edited, normalized, merged, or fitted to a character.
 
 Hosted generation is currently **monoview**. `charctx generate` and the
 `trellis2` backend condition each run on exactly one image. Genuine multi-image
@@ -213,6 +215,13 @@ Start the private Astro catalog at `127.0.0.1:4321`. Missing web dependencies
 are installed automatically; `--no-install` makes their absence an error.
 The server exposes only declared previews and derived GLBs, never vendor
 source files. There is deliberately no deploy or publishing command.
+
+A donor whose package declares `inspection/skeleton.json` also serves that
+artifact, and its detail page draws the extracted rest skeleton over the model
+with `Show skeleton` and `X-ray model` controls beside the existing wireframe
+and material toggles. The overlay is the donor's source hierarchy as-is; it
+asserts nothing canonical. Skin weights stay catalog metadata and are never
+served to the browser.
 
 ```powershell
 uv run charctx web --open

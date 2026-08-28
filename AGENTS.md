@@ -13,9 +13,11 @@ folder with append-only run slots, the `microsoft/TRELLIS.2` backend,
 trimesh mesh measurement, and external-tool provisioning (Blender 5.2.1 in
 `.tools/`). Hosted generation is monoview: `charctx generate` and `trellis2`
 condition a run on exactly one image. Genuine multiview support is parked in
-`plans/2026-08/28-multiview-support/`. What does not exist: a multiview
-backend, canonical topology, landmarks, skeleton fitting, rigging, appearance
-transfer.
+`plans/2026-08/28-multiview-support/`. Donor rigs are extracted faithfully
+(`inspection/skeleton.json`, `inspection/skin-weights.json`) and drawn as a
+rest-pose overlay in the private viewer. What does not exist: a multiview
+backend, canonical topology, landmarks, a canonical skeleton, skeleton
+fitting, rigging, appearance transfer.
 
 Read `README.md` for the command reference and `specifications/README.md` for
 the binding contracts. The active packet is

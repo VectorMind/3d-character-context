@@ -1,7 +1,7 @@
 # Plan — Donor Skeleton Extraction And Viewer
 
 Date: 2026-08-28  
-Status: Implementing — faithful donor preprocessing only; no canonical skeleton
+Status: Complete — faithful donor preprocessing only; no canonical skeleton
 design or per-character rigging
 
 ## Problem Summary
