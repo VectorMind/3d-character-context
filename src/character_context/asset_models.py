@@ -140,6 +140,122 @@ class SkeletonDocument(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class FittedBone(BaseModel):
+    """One bone of a synthesized skeleton, expressed only in viewer space.
+
+    Deliberately narrower than `SkeletonBone`: a fitted skeleton has no Blender
+    armature behind it, so armature-local rest data and local matrices would be
+    meaningless here and are not carried.
+    """
+
+    name: str
+    parent: str | None = None
+    deform: bool
+    connected: bool
+    depth: int = Field(ge=0)
+    head: tuple[float, float, float]
+    tail: tuple[float, float, float]
+    length: float = Field(ge=0)
+    roll: float
+
+
+class FittedArmature(BaseModel):
+    name: str
+    bones: list[FittedBone]
+    roots: list[str]
+    leaves: list[str]
+    max_depth: int = Field(ge=0)
+    bounds_min: tuple[float, float, float]
+    bounds_max: tuple[float, float, float]
+    total_length: float = Field(ge=0)
+
+    @model_validator(mode="after")
+    def validate_hierarchy(self) -> FittedArmature:
+        names = [bone.name for bone in self.bones]
+        if len(names) != len(set(names)):
+            raise ValueError(f"armature {self.name!r} has duplicate bone names")
+        known = set(names)
+        for bone in self.bones:
+            if bone.parent is not None and bone.parent not in known:
+                raise ValueError(
+                    f"bone {bone.name!r} has unknown parent {bone.parent!r}"
+                )
+        measured_roots = [bone.name for bone in self.bones if bone.parent is None]
+        if self.roots != measured_roots:
+            raise ValueError("declared roots disagree with the bone hierarchy")
+        return self
+
+
+class FittedSkeletonDocument(BaseModel):
+    """A skeleton synthesized onto a target mesh.
+
+    Structurally compatible with `charctx.skeleton/v1` for viewing, but a
+    separate schema on purpose: that one is the faithful record of an
+    unmodified donor rig, and this one is derived geometry that never existed
+    in any source file. `derivation` records exactly how it was produced.
+    """
+
+    schema_id: Literal["charctx.fitted-skeleton/v1"] = Field(
+        default="charctx.fitted-skeleton/v1", alias="schema"
+    )
+    target_id: str
+    donor_id: str
+    coordinate_system: dict[str, Any]
+    derivation: dict[str, Any]
+    armatures: list[FittedArmature]
+    summary: dict[str, Any]
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class Landmark(BaseModel):
+    """One proposed anatomical point on a target mesh."""
+
+    name: str
+    point: tuple[float, float, float]
+    side: Literal["left", "right", "center"]
+    source: Literal["geometric", "assisted", "manual"]
+    confidence: Literal["high", "medium", "low"]
+    evidence: str
+
+
+class LandmarkDocument(BaseModel):
+    """Proposed landmarks for one target mesh.
+
+    Every point is a proposal, never a measurement of ground truth. `source`
+    and `confidence` travel with each landmark so a later hand correction is
+    distinguishable from the geometry that suggested it.
+    """
+
+    schema_id: Literal["charctx.landmarks/v1"] = Field(
+        default="charctx.landmarks/v1", alias="schema"
+    )
+    target_id: str
+    method: str
+    coordinate_system: dict[str, Any]
+    derivation: dict[str, Any]
+    landmarks: list[Landmark]
+    summary: dict[str, Any]
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    @model_validator(mode="after")
+    def validate_names(self) -> LandmarkDocument:
+        names = [mark.name for mark in self.landmarks]
+        if len(names) != len(set(names)):
+            raise ValueError("duplicate landmark names")
+        for mark in self.landmarks:
+            if mark.side == "center" and "." in mark.name:
+                raise ValueError(f"centre landmark {mark.name!r} carries a side suffix")
+            if mark.side != "center" and not mark.name.endswith(
+                f".{mark.side[0].upper()}"
+            ):
+                raise ValueError(
+                    f"landmark {mark.name!r} disagrees with side {mark.side!r}"
+                )
+        return self
+
+
 class SkinWeightBinding(BaseModel):
     mesh: str
     armature: str
@@ -271,6 +387,8 @@ class GenerationManifest(BaseModel):
     request_file: str = "request.json"
     inputs: list[str] = Field(default_factory=list)
     previews: list[str] = Field(default_factory=list)
+    skeleton: str | None = None
+    landmarks: str | None = None
     stages: dict[str, str] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
 

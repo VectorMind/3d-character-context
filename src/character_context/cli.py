@@ -583,6 +583,57 @@ def cmd_generations_build(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_skeleton_fit(args: argparse.Namespace) -> int:
+    """Fit a donor skeleton onto one generation run's mesh."""
+    from . import project as project_mod
+    from . import skeleton_fit as skeleton_fit_mod
+
+    selected = project_mod.select(args.project)
+    result = skeleton_fit_mod.fit(
+        selected, args.run, args.donor, character_id=args.character
+    )
+    fill = result["target_fill_ratio"]
+    lines = [
+        f"skeleton fitted: {result['target']}",
+        f"  donor    : {result['donor']}",
+        f"  method   : {result['method']}",
+        f"  bones    : {result['bones']}",
+        f"  scale    : {result['uniform_scale']:.6f} (uniform)",
+        "  fill     : "
+        + ", ".join(f"{axis} {value:.0%}" for axis, value in fill.items()),
+        f"  skeleton : {result['skeleton']}",
+    ]
+    _emit(result, lines, args.json)
+    return 0
+
+
+def cmd_skeleton_landmarks(args: argparse.Namespace) -> int:
+    """Propose anatomical landmarks on one generation run's mesh."""
+    from . import landmarks as landmarks_mod
+    from . import project as project_mod
+
+    selected = project_mod.select(args.project)
+    result = landmarks_mod.build(selected, args.run, character_id=args.character)
+    summary = result["summary"]
+    axes = result["axes"]
+    lines = [
+        f"landmarks proposed: {result['target']}",
+        f"  method    : {result['method']}",
+        f"  axes      : symmetry {axes['symmetry_axis']}, body "
+        f"{axes['body_axis']}, up {axes['up_axis']}",
+        f"  head       : towards {result['head_towards']} "
+        f"{axes['body_axis']}",
+        f"  landmarks : {summary['landmarks']} "
+        f"({summary['center']} center, {summary['left']} left, "
+        f"{summary['right']} right; {summary['high_confidence']} high)",
+        f"  skipped   : {len(result['not_attempted'])} interior joints "
+        f"({', '.join(result['not_attempted'])})",
+        f"  file      : {result['landmarks']}",
+    ]
+    _emit(result, lines, args.json)
+    return 0
+
+
 def cmd_web(args: argparse.Namespace) -> int:
     """Start the private local Astro asset catalog."""
     from . import project as project_mod
@@ -752,6 +803,41 @@ def build_parser() -> argparse.ArgumentParser:
         "--character", help="owning character id (default: request name)"
     )
     generations_build.set_defaults(func=cmd_generations_build)
+
+    skeleton = subparsers.add_parser(
+        "skeleton",
+        help="synthesize and inspect skeletons for generated meshes",
+        parents=[shared],
+    )
+    skeleton_sub = skeleton.add_subparsers(dest="skeleton_command", required=True)
+    skeleton_fit_parser = skeleton_sub.add_parser(
+        "fit",
+        help="fit a donor skeleton onto one generation run",
+        parents=[shared],
+    )
+    skeleton_fit_parser.add_argument(
+        "run", help="generation id as <backend>/<run-folder>"
+    )
+    skeleton_fit_parser.add_argument(
+        "--donor", required=True, help="donor asset id supplying the hierarchy"
+    )
+    skeleton_fit_parser.add_argument(
+        "--character", help="owning character id (default: request name)"
+    )
+    skeleton_fit_parser.set_defaults(func=cmd_skeleton_fit)
+
+    skeleton_landmarks_parser = skeleton_sub.add_parser(
+        "landmarks",
+        help="propose anatomical landmarks on one generation run",
+        parents=[shared],
+    )
+    skeleton_landmarks_parser.add_argument(
+        "run", help="generation id as <backend>/<run-folder>"
+    )
+    skeleton_landmarks_parser.add_argument(
+        "--character", help="owning character id (default: request name)"
+    )
+    skeleton_landmarks_parser.set_defaults(func=cmd_skeleton_landmarks)
 
     web = subparsers.add_parser(
         "web", help="start the private local dragon catalog", parents=[shared]

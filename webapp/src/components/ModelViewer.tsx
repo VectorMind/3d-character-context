@@ -11,9 +11,30 @@ type Bone = {
 };
 
 type SkeletonDocument = {
-  schema: 'charctx.skeleton/v1';
+  schema: 'charctx.skeleton/v1' | 'charctx.fitted-skeleton/v1';
   armatures: Array<{ name: string; bones: Bone[] }>;
   summary: { bones: number; deform_bones: number };
+};
+
+type Landmark = {
+  name: string;
+  point: [number, number, number];
+  side: 'left' | 'right' | 'center';
+  confidence: 'high' | 'medium' | 'low';
+};
+
+type LandmarkDocument = {
+  schema: 'charctx.landmarks/v1';
+  landmarks: Landmark[];
+  summary: { landmarks: number };
+};
+
+// Colour by side, so a left/right mix-up is visible at a glance rather than
+// something you have to read out of the JSON.
+const SIDE_COLOR: Record<Landmark['side'], string> = {
+  center: '#ffd166',
+  left: '#5ad2ff',
+  right: '#ff7ad5',
 };
 
 function fitTransform(boundsMin?: number[], boundsMax?: number[]) {
@@ -92,7 +113,7 @@ function SkeletonOverlay({ url, visible, onReady }: { url: string; visible: bool
       })
       .then((value: SkeletonDocument) => {
         setData(value);
-        onReady(`${value.summary.bones} bones extracted`);
+        onReady(`${value.summary.bones} bones ${value.schema === 'charctx.fitted-skeleton/v1' ? 'fitted' : 'extracted'}`);
       })
       .catch((error) => {
         if (error.name !== 'AbortError') onReady('Skeleton unavailable');
@@ -136,7 +157,55 @@ function SkeletonOverlay({ url, visible, onReady }: { url: string; visible: bool
   return <primitive object={group} visible={visible} />;
 }
 
-function Stage({ url, skeletonUrl, skeletonVisible, wireframe, inspectionMaterial, xray, boundsMin, boundsMax, onModelReady, onSkeletonReady }: { url: string; skeletonUrl?: string; skeletonVisible: boolean; wireframe: boolean; inspectionMaterial: boolean; xray: boolean; boundsMin?: number[]; boundsMax?: number[]; onModelReady: (value: string) => void; onSkeletonReady: (value: string) => void }) {
+function LandmarkOverlay({ url, visible, scale, onReady }: { url: string; visible: boolean; scale: number; onReady: (value: string) => void }) {
+  const [data, setData] = useState<LandmarkDocument | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(url, { signal: controller.signal, cache: 'no-store' })
+      .then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      })
+      .then((value: LandmarkDocument) => {
+        setData(value);
+        onReady(`${value.summary.landmarks} landmarks proposed`);
+      })
+      .catch((error) => {
+        if (error.name !== 'AbortError') onReady('Landmarks unavailable');
+      });
+    return () => controller.abort();
+  }, [onReady, url]);
+
+  const group = useMemo(() => {
+    if (!data) return null;
+    const result = new THREE.Group();
+    // Sized in world units so the markers stay legible whatever the model's
+    // own scale is; low-confidence proposals are drawn smaller and dimmer.
+    const radius = .026 / Math.max(scale, .001);
+    const geometry = new THREE.SphereGeometry(radius, 14, 10);
+    for (const mark of data.landmarks) {
+      const weak = mark.confidence === 'low';
+      const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+        color: SIDE_COLOR[mark.side] ?? '#ffffff',
+        transparent: true,
+        opacity: weak ? .45 : .95,
+        depthTest: false,
+        depthWrite: false,
+      }));
+      mesh.scale.setScalar(weak ? .7 : 1);
+      mesh.position.set(mark.point[0], mark.point[1], mark.point[2]);
+      mesh.renderOrder = 25;
+      result.add(mesh);
+    }
+    return result;
+  }, [data, scale]);
+
+  if (!group) return null;
+  return <primitive object={group} visible={visible} />;
+}
+
+function Stage({ url, skeletonUrl, skeletonVisible, landmarkUrl, landmarkVisible, wireframe, inspectionMaterial, xray, boundsMin, boundsMax, onModelReady, onSkeletonReady, onLandmarkReady }: { url: string; skeletonUrl?: string; skeletonVisible: boolean; landmarkUrl?: string; landmarkVisible: boolean; wireframe: boolean; inspectionMaterial: boolean; xray: boolean; boundsMin?: number[]; boundsMax?: number[]; onModelReady: (value: string) => void; onSkeletonReady: (value: string) => void; onLandmarkReady: (value: string) => void }) {
   const transform = useMemo(() => fitTransform(boundsMin, boundsMax), [boundsMin, boundsMax]);
   return <>
     <color attach="background" args={['#070b12']} />
@@ -146,29 +215,33 @@ function Stage({ url, skeletonUrl, skeletonVisible, wireframe, inspectionMateria
     <group position={transform.position} scale={transform.scale}>
       <Suspense fallback={null}><Dragon url={url} wireframe={wireframe} inspectionMaterial={inspectionMaterial} xray={xray} onReady={onModelReady} /></Suspense>
       {skeletonUrl && <SkeletonOverlay url={skeletonUrl} visible={skeletonVisible} onReady={onSkeletonReady} />}
+      {landmarkUrl && <LandmarkOverlay url={landmarkUrl} visible={landmarkVisible} scale={transform.scale} onReady={onLandmarkReady} />}
     </group>
     <Grid infiniteGrid fadeDistance={80} sectionColor="#34445b" cellColor="#1b2635" position={[0, -1.5, 0]} />
     <OrbitControls makeDefault enableDamping enablePan enableRotate enableZoom />
   </>;
 }
 
-export default function ModelViewer({ url, skeletonUrl, boundsMin, boundsMax, sourceMaterialAvailable }: { url: string; skeletonUrl?: string; boundsMin: number[]; boundsMax: number[]; sourceMaterialAvailable: boolean }) {
+export default function ModelViewer({ url, skeletonUrl, landmarkUrl, boundsMin, boundsMax, sourceMaterialAvailable }: { url: string; skeletonUrl?: string; landmarkUrl?: string; boundsMin: number[]; boundsMax: number[]; sourceMaterialAvailable: boolean }) {
   const [wireframe, setWireframe] = useState(false);
   const [inspectionMaterial, setInspectionMaterial] = useState(true);
   const [skeletonVisible, setSkeletonVisible] = useState(Boolean(skeletonUrl));
+  const [landmarkVisible, setLandmarkVisible] = useState(Boolean(landmarkUrl));
   const [xray, setXray] = useState(false);
   const [modelStatus, setModelStatus] = useState('Loading model…');
   const [skeletonStatus, setSkeletonStatus] = useState(skeletonUrl ? 'Loading skeleton…' : '');
+  const [landmarkStatus, setLandmarkStatus] = useState(landmarkUrl ? 'Loading landmarks…' : '');
   return <div className="viewer">
     <div className="viewer-ui">
-      <span className="viewer-status">{[modelStatus, skeletonStatus].filter(Boolean).join(' · ')}</span>
+      <span className="viewer-status">{[modelStatus, skeletonStatus, landmarkStatus].filter(Boolean).join(' · ')}</span>
       {skeletonUrl && <button type="button" aria-pressed={skeletonVisible} onClick={() => setSkeletonVisible(!skeletonVisible)}>{skeletonVisible ? 'Hide skeleton' : 'Show skeleton'}</button>}
-      {skeletonUrl && <button type="button" aria-pressed={xray} onClick={() => setXray(!xray)}>{xray ? 'Opaque model' : 'X-ray model'}</button>}
+      {landmarkUrl && <button type="button" aria-pressed={landmarkVisible} onClick={() => setLandmarkVisible(!landmarkVisible)}>{landmarkVisible ? 'Hide landmarks' : 'Show landmarks'}</button>}
+      {(skeletonUrl || landmarkUrl) && <button type="button" aria-pressed={xray} onClick={() => setXray(!xray)}>{xray ? 'Opaque model' : 'X-ray model'}</button>}
       {sourceMaterialAvailable && <button type="button" aria-pressed={inspectionMaterial} onClick={() => setInspectionMaterial(!inspectionMaterial)}>{inspectionMaterial ? 'Source material' : 'Inspection material'}</button>}
       <button type="button" aria-pressed={wireframe} onClick={() => setWireframe(!wireframe)}>{wireframe ? 'Solid' : 'Wireframe'}</button>
     </div>
     <Canvas camera={{ position: [4.8, 3.2, 6.5], fov: 38 }} dpr={[1, 2]} gl={{ antialias: true }}>
-      <Stage url={url} skeletonUrl={skeletonUrl} skeletonVisible={skeletonVisible} wireframe={wireframe} inspectionMaterial={inspectionMaterial} xray={xray} boundsMin={boundsMin} boundsMax={boundsMax} onModelReady={setModelStatus} onSkeletonReady={setSkeletonStatus} />
+      <Stage url={url} skeletonUrl={skeletonUrl} skeletonVisible={skeletonVisible} landmarkUrl={landmarkUrl} landmarkVisible={landmarkVisible} wireframe={wireframe} inspectionMaterial={inspectionMaterial} xray={xray} boundsMin={boundsMin} boundsMax={boundsMax} onModelReady={setModelStatus} onSkeletonReady={setSkeletonStatus} onLandmarkReady={setLandmarkStatus} />
     </Canvas>
   </div>;
 }

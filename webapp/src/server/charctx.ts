@@ -46,6 +46,8 @@ export interface GenerationRecord {
   request_file: string;
   inputs: string[];
   previews: string[];
+  skeleton: string | null;
+  landmarks: string | null;
   stages: Record<string, string>;
   warnings: string[];
   run_dir: string;

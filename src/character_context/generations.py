@@ -146,6 +146,16 @@ def derive_manifest(run: Path, character_id: str) -> GenerationManifest:
         for name in VIEW_NAMES
         if (run / "previews" / f"{name}.webp").is_file()
     ]
+    skeleton = (
+        "skeleton/skeleton.json"
+        if (run / "skeleton" / "skeleton.json").is_file()
+        else None
+    )
+    landmarks = (
+        "skeleton/landmarks.json"
+        if (run / "skeleton" / "landmarks.json").is_file()
+        else None
+    )
     warnings: list[str] = []
     if measurements is None:
         warnings.append("No mesh measurement sidecar is present.")
@@ -166,6 +176,8 @@ def derive_manifest(run: Path, character_id: str) -> GenerationManifest:
         measurements=measurements,
         inputs=inputs,
         previews=previews,
+        skeleton=skeleton,
+        landmarks=landmarks,
         stages=_stage_states(run, inputs),
         warnings=warnings,
     )
@@ -199,6 +211,10 @@ def _record(run: Path, character_id: str) -> GenerationRecord:
     _relative_file(run, manifest.model)
     for relative in [*manifest.inputs, *manifest.previews]:
         _relative_file(run, relative)
+    if manifest.skeleton:
+        _relative_file(run, manifest.skeleton)
+    if manifest.landmarks:
+        _relative_file(run, manifest.landmarks)
     metrics = None
     if manifest.measurements:
         metrics = _json(_relative_file(run, manifest.measurements))

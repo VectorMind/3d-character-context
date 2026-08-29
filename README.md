@@ -209,6 +209,67 @@ browser GLBs without rewriting them.
 uv run charctx assets validate
 ```
 
+### `charctx skeleton fit`
+
+Synthesize a skeleton onto one generation run's mesh from a donor's hierarchy,
+writing `skeleton/skeleton.json` beside the run and completing its `skeleton`
+pipeline stage. The result is a `charctx.fitted-skeleton/v1` document: derived
+geometry that exists in no source file, kept deliberately distinct from the
+faithful `charctx.skeleton/v1` extraction of a donor rig.
+
+The current method, `uniform-contain-bounds/v1`, is the crudest fit there is —
+one uniform scale and one translation that contain the donor skeleton in the
+target's measured box. It carries the donor's rest pose and bone rolls over
+unchanged and takes no joint position from the target mesh. The reported
+per-axis fill ratio is the measurement it exists to produce. Every such limit
+is recorded in the document's `derivation` block.
+
+```powershell
+uv run charctx skeleton fit trellis2/ninjago-riyu-001 --donor european-dragon
+```
+
+```text
+skeleton fitted: trellis2/ninjago-riyu-001
+  donor    : european-dragon
+  method   : uniform-contain-bounds/v1
+  bones    : 168
+  scale    : 0.040686 (uniform)
+  fill     : x 46%, y 100%, z 83%
+```
+
+### `charctx skeleton landmarks`
+
+Propose anatomical landmarks on one generation run's mesh and write
+`skeleton/landmarks.json`. The method, `symmetry-medial-extremal/v1`, is pure
+geometry: it picks the mirror plane by measuring which axis a mirrored copy of
+the vertex cloud lands back onto, slices a medial curve along the body axis,
+tells head from tail by which end stays thin, and reads wings and feet off the
+extremes. It never calls a model and never reads an image.
+
+Nothing depends on mesh connectivity, so a generated surface in thousands of
+disconnected shells is handled the same as a clean one. Interior joints
+(elbow, knee, wing elbow, wing wrist, jaw pivot) leave no reliable surface
+signature and are deliberately **not** guessed — they are listed in the
+document's `not_attempted` field. Every point carries a `source`, a
+`confidence`, and the evidence behind it, so a later hand correction stays
+distinguishable from the geometry that suggested it.
+
+```powershell
+uv run charctx skeleton landmarks trellis2/ninjago-riyu-001
+```
+
+```text
+landmarks proposed: trellis2/ninjago-riyu-001
+  axes      : symmetry x, body z, up y
+  head       : towards positive z
+  landmarks : 21 (9 center, 6 left, 6 right; 10 high)
+  skipped   : 9 interior joints
+```
+
+The private viewer draws them as spheres coloured by side — amber centre, cyan
+left, magenta right — behind a `Show landmarks` toggle, so a left/right mix-up
+is visible at a glance instead of having to be read out of the JSON.
+
 ### `charctx web`
 
 Start the private Astro catalog at `127.0.0.1:4321`. Missing web dependencies
