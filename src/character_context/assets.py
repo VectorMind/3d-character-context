@@ -792,6 +792,16 @@ def _card(
         polygons=sum(int(item.get("polygons", 0)) for item in meshes),
         cover=metadata.cover if cover.is_file() else None,
         web_model=metadata.web_model if model.is_file() else None,
+        parts=(
+            "parts/parts.json"
+            if (package / "parts" / "parts.json").is_file()
+            else None
+        ),
+        part_skeleton=(
+            "parts/skeleton.json"
+            if (package / "parts" / "skeleton.json").is_file()
+            else None
+        ),
         skeleton=(
             inspection.skeleton.path
             if inspection and inspection.skeleton

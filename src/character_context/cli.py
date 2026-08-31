@@ -590,19 +590,49 @@ def cmd_skeleton_fit(args: argparse.Namespace) -> int:
 
     selected = project_mod.select(args.project)
     result = skeleton_fit_mod.fit(
-        selected, args.run, args.donor, character_id=args.character
+        selected, args.run, args.donor, method=args.method,
+        character_id=args.character,
     )
     fill = result["target_fill_ratio"]
+    containment = result["containment"]
     lines = [
         f"skeleton fitted: {result['target']}",
         f"  donor    : {result['donor']}",
         f"  method   : {result['method']}",
         f"  bones    : {result['bones']}",
-        f"  scale    : {result['uniform_scale']:.6f} (uniform)",
         "  fill     : "
         + ", ".join(f"{axis} {value:.0%}" for axis, value in fill.items()),
-        f"  skeleton : {result['skeleton']}",
+        f"  outside  : {containment['outside_bounds']} of "
+        f"{containment['joints']} joints beyond the mesh bounds"
+        + (
+            f" ({containment['anchored']['outside_bounds']} anchored, "
+            f"{containment['carried']['outside_bounds']} carried)"
+            if "anchored" in containment
+            else ""
+        ),
     ]
+    if "chains" in result:
+        symmetry = result["symmetry"]
+        lines.extend(
+            [
+                f"  anchored : {result['anchored_bones']} bones on "
+                f"{len(result['chains'])} chains; "
+                f"{result['carried_bones']} carried in a parent frame",
+                f"  symmetry : max {symmetry.get('max', 0.0):.6f} over "
+                f"{symmetry.get('pairs', 0)} mirrored pairs",
+            ]
+        )
+        for chain in result["chains"]:
+            lines.append(
+                f"    {chain['chain']:<12} {chain['bones']:>2} bones  "
+                f"scale {chain['scale']:.4f}  "
+                f"({' -> '.join(chain['landmarks'])})"
+            )
+        for entry in result["chains_skipped"]:
+            lines.append(f"    {entry['chain']:<12} skipped: {entry['reason']}")
+    else:
+        lines.append(f"  scale    : {result['uniform_scale']:.6f} (uniform)")
+    lines.append(f"  skeleton : {result['skeleton']}")
     _emit(result, lines, args.json)
     return 0
 
@@ -630,6 +660,226 @@ def cmd_skeleton_landmarks(args: argparse.Namespace) -> int:
         f"({', '.join(result['not_attempted'])})",
         f"  file      : {result['landmarks']}",
     ]
+    _emit(result, lines, args.json)
+    return 0
+
+
+def cmd_parts_taxonomy(args: argparse.Namespace) -> int:
+    """Print the standardized body-part taxonomy."""
+    from . import body_parts as body_parts_mod
+
+    result = body_parts_mod.describe()
+    lines = [
+        f"taxonomy: {result['taxonomy']}",
+        f"  parts  : {result['parts']} "
+        f"({len(result['axial'])} axial, {len(result['paired'])} paired)",
+        f"  axial  : {', '.join(result['axial'])}",
+        f"  paired : {', '.join(result['paired'])}",
+        f"  sub    : {', '.join(result['sub_parts']) or 'none'}",
+        f"  root   : {result['root']}, hierarchy declared over "
+        f"{len(result['hierarchy'])} parts",
+        f"  donors : {', '.join(result['donors_mapped']) or 'none mapped'}",
+    ]
+    _emit(result, lines, args.json)
+    return 0
+
+
+def _voxel_lines(result: dict) -> list[str]:
+    voxelization = result["voxelization"]
+    summary = result["summary"]
+    lines = [
+        f"  grid     : {result['grid']['resolution']}^3 at pitch "
+        f"{result['grid']['pitch']:.5f}",
+        f"  solid    : {summary['solid_voxels']} voxels "
+        f"({voxelization['occupancy']:.1%} of the grid), "
+        f"{voxelization['solid_components']} component(s)",
+        f"  labelled : {summary['labelled_voxels']} "
+        f"({summary['labelled_fraction']:.1%}) across "
+        f"{summary['parts_present']}/{summary['parts_total']} parts",
+    ]
+    if result["empty_parts"]:
+        lines.append(f"  empty    : {', '.join(result['empty_parts'])}")
+    if result["split_parts"]:
+        leaks = ", ".join(
+            f"{name} x{pieces}" for name, pieces in result["split_parts"].items()
+        )
+        lines.append(f"  split    : {leaks}")
+    return lines
+
+
+def cmd_parts_reference(args: argparse.Namespace) -> int:
+    """Label a donor's volume from its own authored rig."""
+    from . import part_volume as part_volume_mod
+    from . import project as project_mod
+
+    selected = project_mod.select(args.project)
+    result = part_volume_mod.reference(
+        selected, args.donor, resolution=args.resolution
+    )
+    coverage = result["weight_coverage"]
+    lines = [
+        f"part reference: {result['target']}",
+        f"  method   : {result['method']}",
+        *_voxel_lines(result),
+    ]
+    if coverage.get("available"):
+        state = (
+            "all mapped"
+            if coverage["total"]
+            else "UNMAPPED: " + ", ".join(coverage["unmapped"][:5])
+        )
+        lines.append(
+            f"  weights  : {coverage['weight_bearing_bones']} weight-bearing "
+            f"bones, {state}"
+        )
+    lines.append(f"  file     : {result['parts']}")
+    _emit(result, lines, args.json)
+    return 0
+
+
+def cmd_parts_segment(args: argparse.Namespace) -> int:
+    """Classify one generation run's volume into body parts."""
+    from . import part_volume as part_volume_mod
+    from . import project as project_mod
+
+    selected = project_mod.select(args.project)
+    result = part_volume_mod.segment(
+        selected, args.run, character_id=args.character, resolution=args.resolution
+    )
+    lines = [
+        f"parts segmented: {result['target']}",
+        f"  method   : {result['method']}",
+        *_voxel_lines(result),
+        f"  no seed  : {len(result['unseedable_parts'])} part(s) have no "
+        f"landmark and cannot appear "
+        f"({', '.join(result['unseedable_parts'])})",
+        f"  file     : {result['parts']}",
+    ]
+    _emit(result, lines, args.json)
+    return 0
+
+
+def cmd_parts_score(args: argparse.Namespace) -> int:
+    """Score a sparse-seed proposal against a donor's authored rig."""
+    from . import part_volume as part_volume_mod
+    from . import project as project_mod
+
+    selected = project_mod.select(args.project)
+    result = part_volume_mod.score(
+        selected, args.donor, mode=args.mode, resolution=args.resolution
+    )
+    metrics = result["metrics"]
+    lines = [
+        f"part score: {result['target']} ({result['mode']} seeding)",
+        f"  grid      : {result['grid']['resolution']}^3, "
+        f"{result['solid_voxels']} solid voxels",
+        f"  seeds     : {result['proposal_seed_points']} proposal vs "
+        f"{result['reference_seed_points']} reference points",
+        f"  accuracy  : {metrics['voxel_accuracy']:.1%} of labelled voxels agree",
+        f"  IoU       : mean {metrics['mean_iou']:.3f}, "
+        f"median {metrics['median_iou']:.3f} over "
+        f"{metrics['parts_scored']} parts",
+        "  worst     : "
+        + ", ".join(f"{row['part']} {row['iou']:.2f}" for row in metrics["worst"]),
+        "  best      : "
+        + ", ".join(f"{row['part']} {row['iou']:.2f}" for row in metrics["best"]),
+    ]
+    if metrics["missed_entirely"]:
+        lines.append(f"  missed    : {', '.join(metrics['missed_entirely'])}")
+    if result["unseedable_parts"]:
+        lines.append(
+            f"  no seed   : {len(result['unseedable_parts'])} part(s) - "
+            f"{', '.join(result['unseedable_parts'])}"
+        )
+    _emit(result, lines, args.json)
+    return 0
+
+
+def cmd_parts_skeleton(args: argparse.Namespace) -> int:
+    """Derive a bone hierarchy from a target's labelled volume."""
+    from . import part_skeleton as part_skeleton_mod
+    from . import project as project_mod
+
+    selected = project_mod.select(args.project)
+    result = part_skeleton_mod.derive(
+        selected, args.target, seeds=args.seeds, resolution=args.resolution
+    )
+    summary = result["summary"]
+    check = result["adjacency_check"]
+    lines = [
+        f"skeleton derived: {result['target']} ({result['seeds']} seeding)",
+        f"  method   : {result['method']}",
+        f"  bones    : {summary['bones']} over "
+        f"{summary['parts_present']}/{summary['parts_total']} parts, "
+        f"depth {summary['max_depth']}, total length "
+        f"{summary['total_length']:.3f}",
+        f"  joints   : {summary['joints']} region boundaries",
+    ]
+    if check.get("available"):
+        lines.append(
+            f"  adjacency: {check['agrees_with_declared']}/{check['parts']} "
+            f"derived edges agree with the declared hierarchy"
+            + (
+                ""
+                if not check["disagreements"]
+                else " ("
+                + ", ".join(
+                    f"{row['part']}->{row['derived']}"
+                    for row in check["disagreements"]
+                )
+                + ")"
+            )
+        )
+    if result["reattached_parts"]:
+        lines.append(f"  reattached: {', '.join(result['reattached_parts'])}")
+    if result["detached_parts"]:
+        lines.append(f"  detached : {', '.join(result['detached_parts'])}")
+    if result["degenerate_bones"]:
+        lines.append(f"  degenerate: {', '.join(result['degenerate_bones'])}")
+    if result["absent_parts"]:
+        lines.append(f"  no bone  : {', '.join(result['absent_parts'])}")
+    lines.append(f"  file     : {result['file']}")
+    _emit(result, lines, args.json)
+    return 0
+
+
+def cmd_parts_skeleton_score(args: argparse.Namespace) -> int:
+    """Score a derived skeleton against a donor's authored rig."""
+    from . import part_skeleton as part_skeleton_mod
+    from . import project as project_mod
+
+    selected = project_mod.select(args.project)
+    result = part_skeleton_mod.score(
+        selected, args.donor, seeds=args.seeds, resolution=args.resolution
+    )
+    joint = result["joint_error"]
+    check = result["adjacency_check"]
+    lines = [
+        f"skeleton score: {result['target']} ({result['seeds']} seeding)",
+        f"  bones     : {result['bones']} bones, {result['scored_joints']} "
+        f"joints scored against the donor rig",
+        f"  hierarchy : {result['hierarchy_matches_donor']}/"
+        f"{result['hierarchy_total']} declared parents match the donor; "
+        f"adjacency alone agrees on {check.get('agrees_with_declared', 0)}",
+        f"  joint err : median {joint['median_pct']:.2%} of the body "
+        f"diagonal, mean {joint['mean_pct']:.2%} "
+        f"({joint['mean_voxels']} voxels), max {joint['max_pct']:.2%}",
+        f"  unambiguous: median {joint['unambiguous_median_pct']:.2%} over "
+        f"{joint['unambiguous_joints']} joints the donor places at one point",
+        f"  bone axis : median {result['axis_angle_deg']['median']}deg",
+        "  worst     : "
+        + ", ".join(
+            f"{row['part']} {row['joint_error_pct']:.1%}"
+            for row in result["worst_joints"]
+        ),
+        "  best      : "
+        + ", ".join(
+            f"{row['part']} {row['joint_error_pct']:.1%}"
+            for row in result["best_joints"]
+        ),
+    ]
+    if result["missing_from_donor"]:
+        lines.append(f"  missing   : {', '.join(result['missing_from_donor'])}")
     _emit(result, lines, args.json)
     return 0
 
@@ -824,6 +1074,13 @@ def build_parser() -> argparse.ArgumentParser:
     skeleton_fit_parser.add_argument(
         "--character", help="owning character id (default: request name)"
     )
+    skeleton_fit_parser.add_argument(
+        "--method",
+        choices=("chain", "rigid"),
+        default="chain",
+        help="chain: anchor joints on the target's landmarks (default); "
+        "rigid: move the donor rig as one body",
+    )
     skeleton_fit_parser.set_defaults(func=cmd_skeleton_fit)
 
     skeleton_landmarks_parser = skeleton_sub.add_parser(
@@ -838,6 +1095,99 @@ def build_parser() -> argparse.ArgumentParser:
         "--character", help="owning character id (default: request name)"
     )
     skeleton_landmarks_parser.set_defaults(func=cmd_skeleton_landmarks)
+
+    parts = subparsers.add_parser(
+        "parts",
+        help="classify a mesh volume into standardized body parts",
+        parents=[shared],
+    )
+    parts_sub = parts.add_subparsers(dest="parts_command", required=True)
+
+    parts_taxonomy = parts_sub.add_parser(
+        "taxonomy", help="print the standardized part taxonomy", parents=[shared]
+    )
+    parts_taxonomy.set_defaults(func=cmd_parts_taxonomy)
+
+    parts_reference = parts_sub.add_parser(
+        "reference",
+        help="label a donor's volume from its own authored rig",
+        parents=[shared],
+    )
+    parts_reference.add_argument("donor", help="donor asset id")
+    parts_reference.add_argument(
+        "--resolution", type=int, default=128, help="voxel grid resolution"
+    )
+    parts_reference.set_defaults(func=cmd_parts_reference)
+
+    parts_segment = parts_sub.add_parser(
+        "segment",
+        help="classify one generation run's volume from its landmarks",
+        parents=[shared],
+    )
+    parts_segment.add_argument("run", help="generation id as <backend>/<run-folder>")
+    parts_segment.add_argument(
+        "--character", help="owning character id (default: request name)"
+    )
+    parts_segment.add_argument(
+        "--resolution", type=int, default=128, help="voxel grid resolution"
+    )
+    parts_segment.set_defaults(func=cmd_parts_segment)
+
+    parts_score = parts_sub.add_parser(
+        "score",
+        help="score sparse-seed segmentation against a donor's authored rig",
+        parents=[shared],
+    )
+    parts_score.add_argument("donor", help="donor asset id")
+    parts_score.add_argument(
+        "--mode",
+        choices=("centroid", "landmarks"),
+        default="centroid",
+        help="centroid: one seed per part, isolating the cost of sparsity; "
+        "landmarks: the real geometric proposer, end to end",
+    )
+    parts_score.add_argument(
+        "--resolution", type=int, default=128, help="voxel grid resolution"
+    )
+    parts_score.set_defaults(func=cmd_parts_score)
+
+    parts_skeleton = parts_sub.add_parser(
+        "skeleton",
+        help="derive a bone hierarchy from a labelled volume",
+        parents=[shared],
+    )
+    parts_skeleton.add_argument(
+        "target", help="donor asset id, or generation id as <backend>/<run-folder>"
+    )
+    parts_skeleton.add_argument(
+        "--seeds",
+        choices=("reference", "centroid", "landmarks"),
+        default="reference",
+        help="how the volume is labelled first: reference uses a donor's own "
+        "authored bones, centroid and landmarks are donor-independent",
+    )
+    parts_skeleton.add_argument(
+        "--resolution", type=int, default=128, help="voxel grid resolution"
+    )
+    parts_skeleton.set_defaults(func=cmd_parts_skeleton)
+
+    parts_skeleton_score = parts_sub.add_parser(
+        "skeleton-score",
+        help="score a derived skeleton against a donor's authored rig",
+        parents=[shared],
+    )
+    parts_skeleton_score.add_argument("donor", help="donor asset id")
+    parts_skeleton_score.add_argument(
+        "--seeds",
+        choices=("reference", "centroid", "landmarks"),
+        default="reference",
+        help="reference isolates the skeleton step; centroid and landmarks "
+        "measure it compounded with a sparse labelling",
+    )
+    parts_skeleton_score.add_argument(
+        "--resolution", type=int, default=128, help="voxel grid resolution"
+    )
+    parts_skeleton_score.set_defaults(func=cmd_parts_skeleton_score)
 
     web = subparsers.add_parser(
         "web", help="start the private local dragon catalog", parents=[shared]

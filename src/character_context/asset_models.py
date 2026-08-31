@@ -208,6 +208,31 @@ class FittedSkeletonDocument(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class DerivedSkeletonDocument(BaseModel):
+    """A skeleton read out of a labelled volume, with no donor behind it.
+
+    Distinct from `charctx.fitted-skeleton/v1` on the one point that matters:
+    that schema requires a `donor_id` because a fitted skeleton *is* a donor
+    hierarchy moved onto a target, and this one has no donor at all. Its bones
+    are the taxonomy's parts and its joints are the boundaries between them, so
+    the only inputs are the target's own geometry and the standardized part
+    contract. A donor may still be used to *score* it, which is a different
+    relationship and is recorded in `derivation`, not in the identity.
+    """
+
+    schema_id: Literal["charctx.derived-skeleton/v1"] = Field(
+        default="charctx.derived-skeleton/v1", alias="schema"
+    )
+    target_id: str
+    taxonomy: str
+    coordinate_system: dict[str, Any]
+    derivation: dict[str, Any]
+    armatures: list[FittedArmature]
+    summary: dict[str, Any]
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class Landmark(BaseModel):
     """One proposed anatomical point on a target mesh."""
 
@@ -361,6 +386,8 @@ class AssetCard(BaseModel):
     web_model: str | None
     skeleton: str | None = None
     skin_weights: str | None = None
+    parts: str | None = None
+    part_skeleton: str | None = None
     deform_bones: int = 0
     previews: list[str]
     generations: int = 0
@@ -388,7 +415,10 @@ class GenerationManifest(BaseModel):
     inputs: list[str] = Field(default_factory=list)
     previews: list[str] = Field(default_factory=list)
     skeleton: str | None = None
+    skeleton_alternate: str | None = None
     landmarks: str | None = None
+    parts: str | None = None
+    part_skeleton: str | None = None
     stages: dict[str, str] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
 

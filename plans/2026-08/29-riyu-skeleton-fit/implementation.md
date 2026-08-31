@@ -2,9 +2,11 @@
 
 ## Progress
 
-`▰▰▱▱▱▱▱ Step 2/7` — the crude rigid transfer and the geometric landmark
-proposal are both landed and visible on Riyu's page. Step 3 (landmark-driven
-per-chain fit) is next, and the review gate sits at its end.
+`▰▰▰▱▱▱▱ Step 3/7` — the landmark-driven per-chain fit is landed: Riyu carries
+a 168-bone skeleton whose 74 anchored joints all come from its own landmarks,
+drawn over the mesh with the previous rigid fit available behind a compare
+toggle. **The review gate is now open.** Steps 5-7 should not start until the
+pictures have been looked at.
 
 ## 2026-08-29 — Step 1: Crude Rigid Transfer
 
@@ -139,3 +141,96 @@ landmarks — which is precisely the job the donor hierarchy exists to do.
 `uv run pytest` 98 passed / 1 live skipped · `uv run ruff check .` clean ·
 `pnpm check` 0 diagnostics · Astro build pass · route and confinement checks
 pass. Numbers in `test.md`.
+
+
+## 2026-08-30 — Step 3: Landmark-Driven Per-Chain Fit
+
+Riyu's skeleton now takes every anchored joint from Riyu. The donor supplies
+its hierarchy and its per-chain proportions and nothing else.
+
+### What landed
+
+- `src/character_context/chain_fit.py` — `landmark-chain/v1`. Eight declared
+  chains (spine, tail, two wing spars, four legs) each pair an ordered run of
+  donor bones with an ordered polyline of target landmarks, and the chain's
+  bones are redistributed along that polyline by arc length. Pure-Python
+  3-vector and 3x3 math; no numpy, no mesh access.
+- `skeleton_fit.py` — now an orchestrator over two methods. `_rigid` is step
+  1's transform, unchanged; `chain` dispatches to `chain_fit`. Both write the
+  same document, and a new `_containment` metric counts escaping joints split
+  by anchored versus carried.
+- `cli.py` — `charctx skeleton fit ... --method chain|rigid`, defaulting to
+  `chain`, and per-chain reporting in the human output.
+- `asset_models.py` / `generations.py` — `skeleton_alternate` on the
+  manifest, derived from `skeleton/fits/`.
+- Web — the route allowlists the alternate, `SkeletonOverlay` gained a muted
+  mode, and the viewer gained a `Compare previous fit` toggle plus the fit
+  method in its status line.
+- `tests/test_chain_fit.py` — fourteen tests. `test_skeleton_fit.py` now pins
+  itself to `method="rigid"`, which is what it always tested.
+- README gained the two-method section in the same pass.
+
+### Decisions
+
+- **Only donor bone *lengths* may cross the boundary.** Anchored joints are
+  sampled off the target polyline by donor arc-length fraction, so no donor
+  coordinate participates. This is the packet's central claim, so it is a
+  test rather than a comment: move the donor rig anywhere in space and the
+  anchored joints come out bit-identical.
+- **A bone no chain claims is carried, not guessed.** Fingers, toes, palms,
+  teeth, eyes, lids and the second wing spar have no landmark. They inherit
+  the parent bone's similarity transform (swing rotation, uniform scale,
+  translation) and are reported separately as `carried`. Naming the carry is
+  what keeps it from being read as anatomy — the same discipline step 2 used
+  for the nine interior joints it declined to propose.
+- **A branch chain starts from its fitted parent, not from a landmark.** No
+  attachment landmark was ever proposed, so the polyline's first point is the
+  parent chain's own fitted geometry. Attachment therefore inherits from
+  target-derived data rather than from an invented point.
+- **The shortest (swing) rotation, so no twist is invented.** Re-aiming a bone
+  with a minimal-arc rotation adds no roll of its own, which keeps the roll
+  the donor's inherited value rather than an artefact of the fit.
+- **`Fold_4`, not `Fold_3`, is the wing spar.** Measured, not assumed:
+  `DEF-Wing_Fold_4.03.L`'s tail sits at the donor's x maximum (5.694), so it
+  is the finger that reaches the wing tip.
+- **Both methods are kept and both are archived.** `rigid` is no longer the
+  default but it stays the only way to measure how far a donor stance is from
+  a target's. Each method's output lives at `skeleton/fits/<method>.json` and
+  the manifest points the viewer at the previous one, so a new fit is compared
+  rather than silently substituted.
+
+### What the picture showed
+
+Fill went from `x 46% · y 100% · z 83%` to `x 100% · y 97% · z 102%`. The
+wings reach the wing tips and the rig no longer stands taller than the dragon.
+
+Two numbers are worth more than the fill:
+
+- **0 of 148 anchored joints escape the mesh; 85 of 188 carried joints do.**
+  The method's evidence half is fully contained and its inheritance half is
+  not. Fingers and toes push below the ground plane and the head detail past
+  the snout, because a carried bone inherits its parent *chain's* scale and a
+  hand is not scaled like a leg.
+- **The wing chain's scale is half the spine's** (0.0255 against 0.0514).
+  Not an error — the donor's wing is folded in rest pose, so its arc length is
+  about twice the straight span it is fitted onto. The spread across chain
+  scales is a direct readout of which donor chains are curled, and the reason
+  a folded donor can never supply absolute lengths.
+
+Symmetry holds: 68 mirrored pairs, max error 0.0049 (0.5% of body length),
+worst at a carried eye bone. Chain endpoints land exactly on their landmarks;
+interior residuals run 0.004-0.023, worst at `skull` — already a `low`
+confidence landmark in step 2.
+
+### Checks
+
+`uv run pytest` 112 passed / 1 live skipped (14 new) · `uv run ruff check .`
+clean · `pnpm check` 0 diagnostics · Astro build pass · route, allowlist and
+manifest checks pass. Full numbers in `test.md`.
+
+### Not done
+
+The interactive browser click-through was again not run — no browser-control
+runtime is available in this session. Route, prop, containment, symmetry and
+residual evidence stand in its place, and the two questions the pictures still
+have to settle are named at the end of `test.md`.

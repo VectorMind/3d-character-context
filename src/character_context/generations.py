@@ -124,6 +124,31 @@ def _stage_states(run: Path, inputs: list[str]) -> dict[str, str]:
     return {name: states[name] for name in PIPELINE_STAGES}
 
 
+def _alternate_fit(run: Path) -> str | None:
+    """The newest archived fit that is not the one currently declared.
+
+    The stage manifest names the method that wrote `skeleton.json`; any other
+    file in `fits/` is a previous method's result, kept so the two can be
+    compared instead of one silently replacing the other.
+    """
+    fits = run / "skeleton" / "fits"
+    if not fits.is_dir():
+        return None
+    stage = run / "skeleton" / "manifest.json"
+    current = ""
+    if stage.is_file():
+        try:
+            current = str(_json(stage).get("method", "")).split("/")[0]
+        except ConfigError:
+            current = ""
+    others = sorted(
+        (path for path in fits.glob("*.json") if path.stem != current),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    return f"skeleton/fits/{others[0].stem}.json" if others else None
+
+
 def derive_manifest(run: Path, character_id: str) -> GenerationManifest:
     """Derive a stable relative-path manifest from existing run contracts."""
     run = run.resolve()
@@ -151,9 +176,20 @@ def derive_manifest(run: Path, character_id: str) -> GenerationManifest:
         if (run / "skeleton" / "skeleton.json").is_file()
         else None
     )
+    # A second fit method's archived output, so the current fit can be looked
+    # at beside the one it replaced rather than only in isolation.
+    alternate = _alternate_fit(run) if skeleton else None
     landmarks = (
         "skeleton/landmarks.json"
         if (run / "skeleton" / "landmarks.json").is_file()
+        else None
+    )
+    parts = (
+        "parts/parts.json" if (run / "parts" / "parts.json").is_file() else None
+    )
+    part_skeleton = (
+        "parts/skeleton.json"
+        if (run / "parts" / "skeleton.json").is_file()
         else None
     )
     warnings: list[str] = []
@@ -177,7 +213,10 @@ def derive_manifest(run: Path, character_id: str) -> GenerationManifest:
         inputs=inputs,
         previews=previews,
         skeleton=skeleton,
+        skeleton_alternate=alternate,
         landmarks=landmarks,
+        parts=parts,
+        part_skeleton=part_skeleton,
         stages=_stage_states(run, inputs),
         warnings=warnings,
     )
@@ -213,8 +252,14 @@ def _record(run: Path, character_id: str) -> GenerationRecord:
         _relative_file(run, relative)
     if manifest.skeleton:
         _relative_file(run, manifest.skeleton)
+    if manifest.skeleton_alternate:
+        _relative_file(run, manifest.skeleton_alternate)
     if manifest.landmarks:
         _relative_file(run, manifest.landmarks)
+    if manifest.parts:
+        _relative_file(run, manifest.parts)
+    if manifest.part_skeleton:
+        _relative_file(run, manifest.part_skeleton)
     metrics = None
     if manifest.measurements:
         metrics = _json(_relative_file(run, manifest.measurements))

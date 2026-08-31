@@ -23,6 +23,11 @@ dependencies = [
     # connected-component counts are part of the mesh-report contract
     "networkx>=3.3",
     "scipy>=1.13",
+    # volumetric part labelling: 3D skeletonization for medial axes, compact
+    # watershed, true Euclidean geodesics through a volume, and marching cubes.
+    # Approved 2026-08-30; rationale and the probe behind it are in
+    # plans/2026-08/30-body-part-labeling/plan.md.
+    "scikit-image>=0.24",
 ]
 
 [project.scripts]

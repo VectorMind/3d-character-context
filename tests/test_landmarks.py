@@ -178,3 +178,115 @@ def test_build_rejects_an_unsafe_run(project_root: Path, creature_glb: Path) -> 
     make_run(project_root, creature_glb)
     with pytest.raises(ConfigError, match="safe slugs"):
         landmarks.build(Project(project_root), "../creature-001")
+
+
+def test_the_occiput_is_the_deepest_local_minimum_not_the_smallest_slice() -> None:
+    """A taper's narrowest point is the nose, which is not the occiput.
+
+    The profile below falls away steadily toward the snout and carries one
+    genuine waist partway along. Taking the global minimum would put the
+    head's rear boundary at the tip of the face; the local minimum is the
+    only answer that means anything.
+    """
+    centres = [i / 20 for i in range(20)]
+    areas = [1.0, .98, .95, .92, .88, .60, .86, .84, .80, .74,
+             .68, .60, .52, .44, .36, .28, .20, .13, .07, .02]
+
+    found = landmarks._occiput(centres, areas)
+
+    assert found is not None
+    position, depth, runner_up = found
+    assert position == pytest.approx(0.25)
+    # Clear of the runner-up by a wide margin, which is what makes it usable.
+    assert depth > runner_up * 3
+
+
+def test_a_gentle_taper_has_no_occiput_and_says_so() -> None:
+    centres = [i / 12 for i in range(12)]
+    areas = [1.0 - i * 0.08 for i in range(12)]
+
+    assert landmarks._occiput(centres, areas) is None
+
+
+def test_the_section_profile_survives_a_shift_in_where_it_starts() -> None:
+    """Disjoint bins lost the waist when the edges moved; a window must not.
+
+    This is the regression that mattered: with fixed bins, starting the
+    profile a hundredth of the body length earlier smeared a 39% waist down
+    to 13% and the occiput vanished.
+    """
+    import numpy as np
+
+    # A rod with a waist at z = 0.60.
+    rng = np.random.default_rng(0)
+    z = rng.uniform(0.0, 1.0, 60_000)
+    radius = np.where(np.abs(z - 0.60) < 0.03, 0.05, 0.12)
+    angle = rng.uniform(0, 2 * np.pi, len(z))
+    vertices = np.stack(
+        [radius * np.cos(angle), radius * np.sin(angle), z], axis=1
+    )
+
+    found = []
+    for low in (0.0, 0.01, 0.02, 0.03):
+        centres, areas = landmarks._section_profile(
+            vertices, 0, 1, 2, 0.0, low, 1.0
+        )
+        result = landmarks._occiput(centres, areas)
+        assert result is not None, f"waist lost when starting at {low}"
+        found.append(result[0])
+
+    assert max(found) - min(found) < 0.03
+    assert all(0.55 < value < 0.65 for value in found)
+
+
+def test_the_manual_overlay_overrides_a_proposal_and_adds_what_geometry_cannot(
+    project_root: Path, creature_glb: Path
+) -> None:
+    run = make_run(project_root, creature_glb)
+    (run / "skeleton").mkdir(parents=True, exist_ok=True)
+    (run / "skeleton" / landmarks.MANUAL_FILE).write_text(
+        json.dumps(
+            {
+                "schema": "charctx.landmarks-manual/v1",
+                "landmarks": [
+                    {"name": "eye.L", "point": [0.1, 0.2, 0.9]},
+                    {"name": "eye.R", "point": [-0.1, 0.2, 0.9]},
+                    {"name": "snout", "point": [0.0, 0.05, 1.0],
+                     "evidence": "clicked in the front view"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = landmarks.build(Project(project_root), "trellis2/creature-001")
+    document = json.loads(
+        (run / "skeleton" / "landmarks.json").read_text(encoding="utf-8")
+    )
+    marks = {mark["name"]: mark for mark in document["landmarks"]}
+
+    assert set(result["manual"]) == {"eye.L", "eye.R", "snout"}
+    # Added: geometry never proposes an eye.
+    assert marks["eye.L"]["point"] == [0.1, 0.2, 0.9]
+    assert marks["eye.L"]["side"] == "left"
+    assert marks["eye.R"]["side"] == "right"
+    # Overridden: a manual point is evidence and a proposal is not.
+    assert marks["snout"]["point"] == [0.0, 0.05, 1.0]
+    assert marks["snout"]["source"] == "manual"
+    assert document["derivation"]["manual_overlay"]["applied"]
+    assert document["summary"]["landmarks"] == len(document["landmarks"])
+
+
+def test_the_manual_overlay_refuses_a_landmark_it_may_not_set(
+    project_root: Path, creature_glb: Path
+) -> None:
+    """An overlay that accepts any name turns a typo into geometry."""
+    run = make_run(project_root, creature_glb)
+    (run / "skeleton").mkdir(parents=True, exist_ok=True)
+    (run / "skeleton" / landmarks.MANUAL_FILE).write_text(
+        json.dumps({"landmarks": [{"name": "elbow.L", "point": [0, 0, 0]}]}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigError, match="not a landmark this overlay may set"):
+        landmarks.build(Project(project_root), "trellis2/creature-001")

@@ -1,4 +1,10 @@
-"""A donor skeleton is rigidly fitted onto a generated mesh, then declared."""
+"""A donor skeleton is rigidly fitted onto a generated mesh, then declared.
+
+These cover the `rigid` method only. It is no longer the command default, but
+it stays the measurement of how far a donor rest pose is from a target stance,
+so it stays tested on its own terms. The landmark-driven default lives in
+`test_chain_fit.py`.
+"""
 
 from __future__ import annotations
 
@@ -155,7 +161,9 @@ def test_fit_scales_uniformly_to_contain_the_target_and_records_its_limits(
     make_donor(project_root)
     run = make_target(project_root, glb_file)
 
-    result = skeleton_fit.fit(Project(project_root), "trellis2/riyu-001", "donor")
+    result = skeleton_fit.fit(
+        Project(project_root), "trellis2/riyu-001", "donor", method="rigid"
+    )
     document = json.loads((run / "skeleton" / "skeleton.json").read_text())
 
     # The donor's bones span 3 units in y against the target's 3, which is
@@ -180,7 +188,9 @@ def test_fitted_skeleton_lands_inside_the_target_bounds(
     make_donor(project_root)
     run = make_target(project_root, glb_file)
 
-    skeleton_fit.fit(Project(project_root), "trellis2/riyu-001", "donor")
+    skeleton_fit.fit(
+        Project(project_root), "trellis2/riyu-001", "donor", method="rigid"
+    )
     document = json.loads((run / "skeleton" / "skeleton.json").read_text())
 
     for armature in document["armatures"]:
@@ -197,7 +207,9 @@ def test_fit_preserves_hierarchy_and_scales_lengths(
     make_donor(project_root)
     run = make_target(project_root, glb_file)
 
-    skeleton_fit.fit(Project(project_root), "trellis2/riyu-001", "donor")
+    skeleton_fit.fit(
+        Project(project_root), "trellis2/riyu-001", "donor", method="rigid"
+    )
     document = json.loads((run / "skeleton" / "skeleton.json").read_text())
     bones = document["armatures"][0]["bones"]
 
@@ -216,7 +228,9 @@ def test_manifest_declares_the_skeleton_and_completes_the_stage(
     make_donor(project_root)
     run = make_target(project_root, glb_file)
 
-    skeleton_fit.fit(Project(project_root), "trellis2/riyu-001", "donor")
+    skeleton_fit.fit(
+        Project(project_root), "trellis2/riyu-001", "donor", method="rigid"
+    )
     manifest = json.loads(
         (run / generations.VIEWER_FILE).read_text(encoding="utf-8")
     )
@@ -233,7 +247,9 @@ def test_fit_requires_a_donor_with_an_extracted_skeleton(
     make_target(project_root, glb_file)
 
     with pytest.raises(ConfigError, match="no extracted skeleton"):
-        skeleton_fit.fit(Project(project_root), "trellis2/riyu-001", "donor")
+        skeleton_fit.fit(
+            Project(project_root), "trellis2/riyu-001", "donor", method="rigid"
+        )
 
 
 def test_fit_requires_measured_target_bounds(
@@ -244,4 +260,6 @@ def test_fit_requires_measured_target_bounds(
     (run / "riyu.measurements.json").unlink()
 
     with pytest.raises(ConfigError, match="no measurement sidecar"):
-        skeleton_fit.fit(Project(project_root), "trellis2/riyu-001", "donor")
+        skeleton_fit.fit(
+            Project(project_root), "trellis2/riyu-001", "donor", method="rigid"
+        )

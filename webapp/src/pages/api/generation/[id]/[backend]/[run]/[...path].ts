@@ -26,7 +26,7 @@ export const GET: APIRoute = async ({ params }) => {
     const data = await showAsset(id);
     const generation = data.generations.find((item) => item.backend === backend && item.run === run);
     if (!generation) return new Response('Not found', { status: 404 });
-    const allowed = new Set([generation.model, ...generation.inputs, ...generation.previews, generation.skeleton, generation.landmarks].filter(Boolean));
+    const allowed = new Set([generation.model, ...generation.inputs, ...generation.previews, generation.skeleton, generation.skeleton_alternate, generation.landmarks, generation.parts, generation.part_skeleton].filter(Boolean));
     if (!allowed.has(relative)) return new Response('Not found', { status: 404 });
     const runRoot = await realpath(generation.run_dir);
     const file = await realpath(resolve(runRoot, relative));

@@ -217,12 +217,31 @@ pipeline stage. The result is a `charctx.fitted-skeleton/v1` document: derived
 geometry that exists in no source file, kept deliberately distinct from the
 faithful `charctx.skeleton/v1` extraction of a donor rig.
 
-The current method, `uniform-contain-bounds/v1`, is the crudest fit there is —
+Two methods are available, and both are kept because they measure different
+things. Every limit either one carries is recorded in the document's
+`derivation` block.
+
+`--method chain` (the default, `landmark-chain/v1`) needs
+`charctx skeleton landmarks` to have run first. It pairs each donor bone chain
+— spine, tail, one wing spar, each leg — with an ordered polyline of target
+landmarks and redistributes that chain's bones along the polyline by arc
+length. Every anchored joint position therefore comes from the target, and the
+donor contributes only its hierarchy and its per-chain proportions; its rest
+pose cannot reach the result. A bone no chain claims — fingers, toes, teeth,
+eyes, the second wing spar — has no landmark, is not guessed at, and instead
+rides along in its parent's frame. The output separates the two: `anchored`
+counts joints a landmark placed, `carried` counts joints that merely inherited.
+
+`--method rigid` (`uniform-contain-bounds/v1`) is the crudest fit there is —
 one uniform scale and one translation that contain the donor skeleton in the
 target's measured box. It carries the donor's rest pose and bone rolls over
-unchanged and takes no joint position from the target mesh. The reported
-per-axis fill ratio is the measurement it exists to produce. Every such limit
-is recorded in the document's `derivation` block.
+unchanged and takes no joint position from the target mesh. Its per-axis fill
+ratio is the measurement of how far a donor stance is from a target's, which
+no landmark-driven fit can produce for you.
+
+Each method's output is archived under `skeleton/fits/<method>.json`, and the
+run manifest points the viewer at the previous method as `skeleton_alternate`
+so a new fit can be looked at beside the one it replaced.
 
 ```powershell
 uv run charctx skeleton fit trellis2/ninjago-riyu-001 --donor european-dragon
@@ -231,10 +250,16 @@ uv run charctx skeleton fit trellis2/ninjago-riyu-001 --donor european-dragon
 ```text
 skeleton fitted: trellis2/ninjago-riyu-001
   donor    : european-dragon
-  method   : uniform-contain-bounds/v1
+  method   : landmark-chain/v1
   bones    : 168
-  scale    : 0.040686 (uniform)
-  fill     : x 46%, y 100%, z 83%
+  fill     : x 100%, y 97%, z 102%
+  outside  : 85 of 336 joints beyond the mesh bounds (0 anchored, 85 carried)
+  anchored : 74 bones on 8 chains; 94 carried in a parent frame
+  symmetry : max 0.004938 over 68 mirrored pairs
+    spine        11 bones  scale 0.0514  (hip_center -> spine_mid -> chest -> neck_base -> skull -> snout)
+    tail         17 bones  scale 0.0420  (tail_base -> tail_mid -> tail_tip)
+    wing.L       10 bones  scale 0.0255  (wing_root.L -> wing_tip.L)
+    ...
 ```
 
 ### `charctx skeleton landmarks`
@@ -269,6 +294,100 @@ landmarks proposed: trellis2/ninjago-riyu-001
 The private viewer draws them as spheres coloured by side — amber centre, cyan
 left, magenta right — behind a `Show landmarks` toggle, so a left/right mix-up
 is visible at a glance instead of having to be read out of the JSON.
+
+### `charctx parts`
+
+Classify a mesh **volume** into standardized body parts. The taxonomy,
+`western-dragon-parts/v2`, is 29 parts — 9 axial (`head`, `jaw`, `neck`,
+`chest`, `abdomen`, `pelvis`, `tail_base`, `tail_mid`, `tail_tip`) and 10
+paired (`shoulder`, `upper_arm`, `forearm`, `hand`, `thigh`, `shin`, `foot`,
+`wing_root`, `wing_arm`, `wing_hand`) — plus 5 head sub-parts (`nostril`,
+`eye.L/R`, `ear.L/R`) that refine `head` without removing the region from it.
+It is a durable contract in
+[`specifications/body-parts/spec.md`](specifications/body-parts/spec.md).
+
+Eyes, ears and nostrils are **asserted, not inferred**: they have no reliable
+signature in a vertex cloud and are supplied through
+`skeleton/landmarks.manual.json`, by a person or a vision model reading a
+rendered view. A manual point always overrides a proposal, and the overlay may
+only set names on a declared allow-list.
+
+Everything here works on an **occupancy grid, not a surface**, and that is the
+point: a generated mesh in thousands of disconnected shells is one connected
+solid once voxelized, so geodesic distance through the body, region growing and
+volumetric diffusion all become available. Riyu's 6,209 shells voxelize to a
+single solid component.
+
+```powershell
+uv run charctx parts taxonomy
+uv run charctx parts reference european-dragon
+uv run charctx parts segment trellis2/ninjago-riyu-001
+uv run charctx parts score european-dragon --mode centroid
+uv run charctx parts skeleton european-dragon
+uv run charctx parts skeleton-score european-dragon --seeds centroid
+```
+
+`reference` labels a donor's volume from its own authored bone placement — the
+closest thing to an answer key this workspace has. `segment` classifies a
+generation run from its proposed landmarks. `score` runs a sparse-seed proposal
+on the donor and reports **per-part IoU** against the reference, never a single
+aggregate: one number is dominated by the torso and would report health for a
+run that lost both wings.
+
+A part with no voxels is listed at zero rather than omitted, and parts no seed
+can reach are counted separately from parts that had a seed and still lost —
+absent by construction is a different fact from misplaced.
+
+```text
+parts segmented: trellis2/ninjago-riyu-001
+  method   : voxel-geodesic-watershed/v1
+  grid     : 128^3 at pitch 0.00808
+  solid    : 44024 voxels (2.1% of the grid), 1 component(s)
+  labelled : 44024 (100.0%) across 20/29 parts
+  empty    : jaw, upper_arm.L, upper_arm.R, forearm.L, forearm.R, shin.L, shin.R, wing_arm.L, wing_arm.R
+  no seed  : 9 part(s) have no landmark and cannot appear
+```
+
+The full-resolution grid is a computation artifact and is never served; the
+browser receives a pooled display grid of linear indices, drawn as coloured
+voxels behind a `Show body parts` toggle.
+
+#### A skeleton out of the labelling
+
+`parts skeleton` reads a bone hierarchy back out of a labelled volume, and
+`parts skeleton-score` measures it against a donor's authored rig. The idea is
+one sentence: **a joint is the boundary between two labelled regions**, so it
+can be measured instead of guessed. Nine joints a sparse landmark set is
+structurally silent about — both elbows, both wrists, both knees, both wing
+elbows and the jaw hinge — are ordinary region interfaces here.
+
+On `european-dragon`, against its own 168-bone rig, the derived joints land at
+a **median 0.70% of the body diagonal** (about one voxel at 128³): the elbow at
+0.33%, the wrist at 0.37%, the knee at 0.72%, the jaw hinge at 1.12%.
+
+Three things go into the result and they are not equally trusted. Joints are
+measured, as the depth-weighted centre of the voxel faces between two parts.
+The hierarchy is **declared** by the taxonomy — deriving it from region
+adjacency was measured at 27 of 31 edges, and every failure was a place where
+the model is folded so two parts touch without articulating, so adjacency is
+now computed each run and reported as a cross-check instead. Roll is not
+derived at all: an occupancy grid carries no twist, so every bone reports 0 and
+says so.
+
+```text
+skeleton score: european-dragon (reference seeding)
+  bones     : 31 bones, 30 joints scored against the donor rig
+  hierarchy : 31/31 declared parents match the donor; adjacency alone agrees on 27
+  joint err : median 0.70% of the body diagonal, mean 1.62% (2.562 voxels), max 13.31%
+  worst     : wing_hand.R 13.3%, wing_hand.L 12.8%, wing_arm.L 2.1%
+  best      : neck 0.1%, chest 0.3%, forearm.L 0.3%
+```
+
+`--seeds reference` uses a donor's own bones and isolates the skeleton step;
+`--seeds centroid` and `--seeds landmarks` are donor-independent and measure it
+compounded with a sparse labelling. The result is written as
+`charctx.derived-skeleton/v1` beside the labelled volume and drawn in the
+viewer behind a `Show part skeleton` toggle.
 
 ### `charctx web`
 

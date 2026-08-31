@@ -24,6 +24,8 @@ export interface AssetCard {
   web_model: string | null;
   skeleton: string | null;
   skin_weights: string | null;
+  parts: string | null;
+  part_skeleton: string | null;
   deform_bones: number;
   previews: string[];
   generations: number;
@@ -47,7 +49,10 @@ export interface GenerationRecord {
   inputs: string[];
   previews: string[];
   skeleton: string | null;
+  skeleton_alternate: string | null;
   landmarks: string | null;
+  parts: string | null;
+  part_skeleton: string | null;
   stages: Record<string, string>;
   warnings: string[];
   run_dir: string;

@@ -157,9 +157,31 @@ for Riyu, and iterate.
 *Proof:* no unweighted vertices; weights normalize; influence map visually sane
 at wings, shoulders, hips and jaw.
 
+## Parenthesis Opened At The Review Gate
+
+[Volumetric Body-Part Labeling](../30-body-part-labeling/plan.md), opened
+2026-08-30, and it changes what steps 4-7 should be. Its phase 1 measured two
+things this packet needs to absorb:
+
+- **Riyu's 6,209 shells voxelize to a single solid component.** Every method
+  this packet rejected for depending on surface connectivity -- geodesic
+  distance, region growing, bone-heat weighting -- is available again in a
+  volume. The "Constraints The Target Mesh Imposes" section above is correct
+  about surfaces and does not apply to grids.
+- **Nine of 29 standardized parts have no landmark that stands for them at
+  all** -- `jaw`, and `upper_arm`, `forearm`, `shin`, `wing_arm` on both
+  sides. They are absent by construction rather than misplaced, and they are
+  the same joints step 2 declined to propose and step 3 had to carry on donor
+  proportion. That is not an accuracy problem this packet can tune away.
+
+The intent is for that packet to become a **prerequisite phase** of this one
+rather than a sibling: a dense part labelling makes a skeleton derivable from
+region medial axes and adjacency instead of fitted from a donor, which is the
+reusability this packet explicitly gave up.
+
 ## Review Gate
 
-Stop after **step 3** and look before committing to steps 5–7. The first real
+Stop after **step 3** and look before committing to steps 5-7. The first real
 fit is likely to change opinions about the rest.
 
 ## Validation Renders

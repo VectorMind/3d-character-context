@@ -15,9 +15,15 @@ trimesh mesh measurement, and external-tool provisioning (Blender 5.2.1 in
 condition a run on exactly one image. Genuine multiview support is parked in
 `plans/2026-08/28-multiview-support/`. Donor rigs are extracted faithfully
 (`inspection/skeleton.json`, `inspection/skin-weights.json`) and drawn as a
-rest-pose overlay in the private viewer. What does not exist: a multiview
-backend, canonical topology, landmarks, a canonical skeleton, skeleton
-fitting, rigging, appearance transfer.
+rest-pose overlay in the private viewer. One generated character
+(`ninjago-riyu-001`) carries geometric landmarks and a landmark-driven fitted
+skeleton, both visible in the viewer; that track is per-character and reusable
+for nothing yet. A standardized 29-part body-part taxonomy exists, with a
+voxel substrate that turns shell soup into one connected solid, a donor
+reference volume, and a scored landmark-seeded segmentation of Riyu. What does
+not exist: a multiview backend, canonical topology, a canonical skeleton, a
+skeleton derived from a part labelling, skin weights on a generated mesh,
+appearance transfer.
 
 Read `README.md` for the command reference and `specifications/README.md` for
 the binding contracts. The active packet is
@@ -137,6 +143,26 @@ Create `survey.md` only when explicitly requested.
 `plan.md` holds approved scope, milestones, dependencies, risks, exit
 criteria, and stable open points (`OP-001`, etc.) with candidates, proposal,
 confidence, and status. Do not silently collapse an unresolved choice.
+
+**Every** open point names a proposal and carries a confidence, not only the
+ones that select a dependency or a tool: an anatomical or methodological
+question ("where is the elbow", "declared or derived hierarchy") gets the same
+treatment. A question without a proposal stalls the work; a proposal without a
+confidence hides how much the maintainer is being asked to weigh. Confidence
+tracks evidence, not enthusiasm — `high` means measured on real data, even
+when the measurement is unflattering.
+
+Anything still waiting on the maintainer also gets a row in `plans/open.md`'s
+**Decisions And Open Points** table, added in the same pass. A decision the
+maintainer has not taken must never be reachable only by opening the plan that
+raised it. Rows leave that table once accepted, rejected or deferred.
+
+A new runtime dependency is an open point too, with a `DEP-00n` id, a row in
+the plan's resolution table, and a row in `plans/open.md`'s Dependencies
+table. Argue it with a **probe run against real project data on this
+platform**, not with a citation — a package that resolves is not a package
+that installs. Never wait on the approval: take the path that needs no new
+dependency, record the ceiling it hits, and leave the request standing.
 
 `implementation.md` opens with a current filled/empty-block Progress line and
 records changes, decisions, deviations, risks, and commands actually

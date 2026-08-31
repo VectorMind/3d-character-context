@@ -142,18 +142,93 @@ so the current state of all plans is visible at a glance.
 
 Open points should be tracked across the discussion. Use stable IDs such as
 `OP-001`, keep the current status visible, and record the resolution only when
-the answer is accepted. In this repository every open point that selects a
-dependency, framework, provider, or tool must list the candidate options with
-a short argument each, name a proposal, and carry a confidence level (`high` /
-`medium` / `low`) alongside its status.
+the answer is accepted.
+
+**Every open point names a proposal and carries a confidence.** This is not
+limited to points that select a dependency, framework, provider, or tool: it
+applies to any question the plan asks, including the anatomical and
+methodological ones ("where is the elbow", "does the hierarchy come from the
+taxonomy or from the geometry"). A question recorded without a proposal is a
+question that stalls the work waiting for an answer, and a proposal recorded
+without a confidence hides how much the maintainer is actually being asked to
+weigh. So each open point lists:
+
+- the candidate options with a short argument each, including the two easiest
+  to forget: doing the simplest possible thing, and doing nothing;
+- **a named proposal**, which the work proceeds on unless and until the
+  maintainer overturns it;
+- **a confidence** (`high` / `medium` / `low`) with a clause saying what would
+  move it — a measurement, a second donor, a look at the picture.
+
+Confidence is about the evidence, not about enthusiasm. A proposal that has
+been measured against real data is `high` even when the measurement is
+unflattering; a proposal that is merely reasonable is `medium` at best.
 
 The resolution summary, placed directly after the problem summary, carries a
-**one-glance table of every open point and design decision** with columns for
-OP id, topic, proposal (the accepted resolution once decided), confidence,
-and status. The table is the at-a-glance state of the plan's decisions and is
+**one-glance table of every open point, design decision and dependency** with
+columns for id, topic, proposal (the accepted resolution once decided),
+confidence, and status. The table is the at-a-glance state of the plan's decisions and is
 updated in the same pass whenever an open point changes status; the full
 candidate options and arguments stay in the detailed Open Points section
 below it.
+
+### The Global Decision Table
+
+A decision the maintainer has not taken yet must never be reachable only by
+opening the plan that raised it. `plans/open.md` therefore carries a
+**Decisions And Open Points** table spanning every packet, in the same spirit
+as its Dependencies table: one row per open point, design decision, question or
+request for feedback that is still awaiting the maintainer, with columns for
+id, packet, topic, proposal, confidence and status.
+
+The rules that keep it useful:
+
+- **It is the queue, not the archive.** A row leaves the table once the
+  maintainer has accepted, rejected or deferred it; the packet's own resolution
+  summary keeps the full history. An empty table means nothing is waiting.
+- **Ids stay packet-local** (`OP-201` in the packet that raised it), and the
+  global row names the packet, so a row and its argument are one click apart.
+- **It is updated in the same pass** as the packet's own table. A packet that
+  raises an open point and does not add it here has not raised it.
+- **Dependencies keep their own table** below it, because a dependency request
+  has a different shape — a ceiling, alternatives, a probe, a blast radius —
+  and mixing the two would flatten both.
+
+### Dependencies
+
+Adding a runtime dependency is a maintainer decision, and the point of writing
+it down is that **needing approval must never be what stops the work**. A
+dependency is therefore an open point like any other selection: it gets a
+stable `DEP-00n` id, it appears in the resolution summary table with its
+status, and the case for it lives in the plan rather than in a conversation.
+
+Each dependency open point carries:
+
+- **the ceiling without it** — what the packet cannot do, or can only do
+  worse, in one line;
+- **the alternatives**, including the two that are easy to forget: writing the
+  routine out by hand, and doing without;
+- **a probe, not a citation.** Run the exact calls the packet would make,
+  against real project data, on this platform, and record the timings and
+  outputs. A package that *resolves* is not a package that *installs*: a
+  source-only distribution will resolve happily and then fail for want of a
+  compiler. A dependency that has not been exercised here is a proposal, not
+  a finding;
+- **the blast radius** — what it pulls in transitively, and what stops working
+  if it is later removed.
+
+Work does not wait on the answer. The packet proceeds down the path that needs
+no new dependency, records the ceiling that path actually hit, and leaves the
+open point standing at `awaiting approval`. That way an unanswered request
+costs a measurement rather than a stall, and the measurement is what makes the
+case when the question is finally put.
+
+A rejected dependency stays in the table with its reason. The next packet that
+wants it should find out why it lost without re-running the probe.
+
+`plans/open.md` carries a **Dependencies** table spanning every packet, next to
+the Decisions And Open Points table above, so a request is never buried inside
+one plan the maintainer is not reading.
 
 `plan.md` does not need detailed rewrites for every implementation deviation.
 Once implementation starts, facts about what actually landed belong in

@@ -11,7 +11,7 @@ export const GET: APIRoute = async ({ params }) => {
   if (!/^[a-z0-9][a-z0-9-]*$/.test(id) || relative.includes('..') || relative.includes('\\')) return new Response('Not found', { status: 404 });
   try {
     const { card } = await showAsset(id);
-    const allowed = new Set([...card.previews, card.cover, card.web_model, card.skeleton].filter(Boolean));
+    const allowed = new Set([...card.previews, card.cover, card.web_model, card.skeleton, card.parts, card.part_skeleton].filter(Boolean));
     if (!allowed.has(relative)) return new Response('Not found', { status: 404 });
     const packageRoot = await realpath(card.package_dir);
     const file = await realpath(resolve(packageRoot, relative));
